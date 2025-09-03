@@ -11,6 +11,7 @@ export default function AppRoutes() {
     <BrowserRouter>
       <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Cargando…</div>}>
         <Routes>
+           <Route path="/" element={<LoginPage />} />
           <Route path={ROUTES.login} element={<LoginPage />} />
 
           <Route path={ROUTES.usuarios} element={<AppShell><UsersPage /></AppShell>} />
@@ -19,6 +20,7 @@ export default function AppRoutes() {
 
           <Route path={ROUTES.app} element={<Navigate to={ROUTES.usuarios} replace />} />
           <Route path="*" element={<Navigate to={ROUTES.usuarios} replace />} />
+           <Route path="*" element={<Navigate to="/app/usuarios" replace />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

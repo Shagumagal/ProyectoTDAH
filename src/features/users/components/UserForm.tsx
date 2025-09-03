@@ -1,158 +1,234 @@
-import { useEffect, useState } from "react";
-import type { Rol, Usuario } from "../../../lib/types";
+import React, { useEffect, useMemo, useState } from "react";
+import type { Usuario } from "../../../lib/types";
 
-type FormCreate = Omit<Usuario, "id" | "estado"> & { password?: string };
-type FormEdit   = Omit<Usuario, "estado"> & { password?: string };
-export type UserFormCreate = FormCreate;
-export type UserFormEdit   = FormEdit;
+// Lo que el formulario devuelve al padre (UsersPage)
+export type UserFormOutput = {
+  id?: string;
+  nombre: string;
+  apellido: string;
+  correo?: string;
+  rol: "Alumno" | "Docente" | "Psicólogo" | "Admin";
+  username?: string;     // solo si quieres manejar alumno sin email
+  password?: string;     // opcional (solo creación)
+};
+
+export type UserFormMode = "create" | "edit";
+
+type Props = {
+  mode: UserFormMode;
+  initialUser?: Usuario | null;
+  onCancel: () => void;
+  onSubmit: (data: UserFormOutput) => void | Promise<void>;
+  className?: string;
+};
+
+const normalizeUsername = (s = "") =>
+  s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+
+const emailOk = (v: string) =>
+  !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
+const usernameOk = (v: string) =>
+  !v || /^[a-z0-9_]{3,24}$/.test(v);
 
 export default function UserForm({
   mode,
   initialUser,
-  onSubmit,
   onCancel,
-}: {
-  mode: "create" | "edit";
-  initialUser?: Usuario;
-  onSubmit: (data: UserFormCreate | UserFormEdit) => void;
-  onCancel: () => void;
-}) {
-  const [nombre, setNombre]     = useState(initialUser?.nombre ?? "");
-  const [apellido, setApellido] = useState(initialUser?.apellido ?? "");
-  const [rol, setRol]           = useState<Rol>(initialUser?.rol ?? "Alumno");
-  const [correo, setCorreo]     = useState(initialUser?.correo ?? "");
-  const [password, setPassword] = useState("");
+  onSubmit,
+  className = "",
+}: Props) {
+  // form state
+  const [nombre, setNombre] = useState("");
+  const [apellido, setApellido] = useState("");
+  const [rol, setRol] = useState<UserFormOutput["rol"]>("Alumno");
+  const [correo, setCorreo] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState(""); // solo creación
   const [showPass, setShowPass] = useState(false);
-  const [errores, setErrores]   = useState<Record<string, string>>({});
 
-  // si cambia el usuario a editar, precargar
+  // ui
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isAlumno = useMemo(() => rol === "Alumno", [rol]);
+
+  // precargar datos si estamos editando
   useEffect(() => {
-    if (!initialUser) return;
-    setNombre(initialUser.nombre ?? "");
-    setApellido(initialUser.apellido ?? "");
-    setRol(initialUser.rol ?? "Alumno");
-    setCorreo(initialUser.correo ?? "");
-    setPassword("");
-    setErrores({});
-  }, [initialUser]);
-
-  function validar() {
-    const e: Record<string, string> = {};
-    if (!nombre.trim()) e.nombre = "Requerido";
-    if (!apellido.trim()) e.apellido = "Requerido";
-
-    if (correo) {
-      const ok = /.+@.+\..+/.test(correo);
-      if (!ok) e.correo = "Correo inválido";
-    } else if (rol !== "Alumno") {
-      e.correo = "Obligatorio para este rol";
+    if (mode === "edit" && initialUser) {
+      setNombre(initialUser.nombre ?? "");
+      setApellido(initialUser.apellido ?? "");
+      // Normalizamos roles que vengan en otros labels
+      const r = (initialUser.rol as any) as UserFormOutput["rol"];
+      setRol(r === "Docente" ? "Docente" : r); // por si en tus datos aparece "Profesor"
+      setCorreo(initialUser.correo ?? "");
+      setUsername((initialUser as any).username ?? "");
+      setPassword("");
+    } else {
+      setNombre("");
+      setApellido("");
+      setRol("Alumno");
+      setCorreo("");
+      setUsername("");
+      setPassword("");
     }
+    setError(null);
+  }, [mode, initialUser]);
 
-    if (password && password.length < 6) e.password = "Mínimo 6 caracteres";
-    setErrores(e);
-    return Object.keys(e).length === 0;
+  function validate(): string | null {
+    const e = correo.trim();
+    const u = normalizeUsername(username);
+
+    if (!nombre.trim() && !apellido.trim()) return "Nombre(s) o Apellido(s) requerido(s).";
+    if (!emailOk(e)) return "Correo inválido.";
+    if (!usernameOk(u)) return "Usuario inválido. Use 3–24 [a-z0-9_].";
+
+    if (rol !== "Alumno" && !e) return "Email es obligatorio para este rol.";
+    if (rol === "Alumno" && !e && !u) return "Para Alumno sin email, ‘Usuario’ es obligatorio.";
+
+    if (mode === "create" && password && password.length < 6) {
+      return "La contraseña debe tener al menos 6 caracteres.";
+    }
+    return null;
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validar()) return;
+  async function handleSubmit(ev: React.FormEvent) {
+    ev.preventDefault();
+    setError(null);
+    const msg = validate();
+    if (msg) return setError(msg);
 
-    const base = {
+    const out: UserFormOutput = {
+      ...(mode === "edit" && initialUser ? { id: initialUser.id } : {}),
       nombre: nombre.trim(),
       apellido: apellido.trim(),
-      correo: correo.trim() || undefined,
       rol,
-      password: password || undefined,
+      correo: correo.trim() || undefined,
+      username: normalizeUsername(username) || undefined,
+      ...(mode === "create" && password ? { password } : {}),
     };
 
-    if (mode === "edit" && initialUser) {
-      onSubmit({ id: initialUser.id, ...base });
-    } else {
-      onSubmit(base);
+    try {
+      setSaving(true);
+      await onSubmit(out);
+    } catch (e: any) {
+      setError(e?.message || "Error al guardar");
+    } finally {
+      setSaving(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+    <form onSubmit={handleSubmit} className={`grid gap-4 ${className}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Nombre */}
         <div>
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Nombre(s)</label>
+          <label className="block text-sm font-semibold text-slate-300">Nombre(s)</label>
           <input
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
-            required
             placeholder="Juan Carlos"
-            className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 px-4 py-3 text-base font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/90 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
-          {errores.nombre && <p className="mt-1 text-xs text-rose-500">{errores.nombre}</p>}
         </div>
+
+        {/* Apellido */}
         <div>
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Apellido(s)</label>
+          <label className="block text-sm font-semibold text-slate-300">Apellido(s)</label>
           <input
             value={apellido}
             onChange={(e) => setApellido(e.target.value)}
-            required
             placeholder="Pérez López"
-            className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 px-4 py-3 text-base font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/90 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
-          {errores.apellido && <p className="mt-1 text-xs text-rose-500">{errores.apellido}</p>}
         </div>
-      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Rol */}
         <div>
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Rol</label>
+          <label className="block text-sm font-semibold text-slate-300">Rol</label>
           <select
             value={rol}
-            onChange={(e) => setRol(e.target.value as Rol)}
-            className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 px-4 py-3 text-base font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            onChange={(e) => setRol(e.target.value as UserFormOutput["rol"])}
+            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
-            <option>Alumno</option><option>Docente</option><option>Psicólogo</option><option>Administrador</option>
+            <option>Alumno</option>
+            <option>Docente</option>
+            <option>Psicólogo</option>
+            <option>Admin</option>
           </select>
         </div>
 
+        {/* Correo */}
         <div>
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Correo</label>
+          <label className="block text-sm font-semibold text-slate-300">Correo</label>
           <input
+            type="email"
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
             placeholder="correo@ejemplo.com"
-            autoCapitalize="none"
-            spellCheck={false}
-            className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 px-4 py-3 text-base font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/90 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-            Obligatorio para Docente/Psicólogo/Administrador. Opcional para Alumno.
-          </p>
-          {errores.correo && <p className="mt-1 text-xs text-rose-500">{errores.correo}</p>}
         </div>
+
+        {/* Username */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-semibold text-slate-300">
+            Usuario <span className="text-slate-400">(si no tiene email)</span>
+          </label>
+          <input
+            value={username}
+            onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+            placeholder="alumno_123 (a-z, 0-9, _)"
+            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Debe cumplir: 3–24, a–z, 0–9 y guión bajo.
+          </p>
+        </div>
+
+        {/* Password (solo creación) */}
+        {mode === "create" && (
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-semibold text-slate-300">
+                Contraseña <span className="text-slate-400">(opcional)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowPass((s) => !s)}
+                className="text-xs text-indigo-400 hover:text-indigo-300"
+              >
+                {showPass ? "Ocultar" : "Mostrar"}
+              </button>
+            </div>
+            <input
+              type={showPass ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mín. 6 caracteres"
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+          </div>
+        )}
       </div>
 
-      <div>
-        <div className="flex items-center justify-between">
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Contraseña (opcional)</label>
-          <button type="button" className="text-xs font-semibold text-indigo-600 dark:text-indigo-400" onClick={() => setShowPass(v => !v)}>
-            {showPass ? "Ocultar" : "Mostrar"}
-          </button>
-        </div>
-        <div className="relative">
-          <input
-            type={showPass ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Mín. 6 caracteres"
-            className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 px-4 py-3 pr-12 text-base font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/90 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-          <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 text-slate-500" aria-hidden>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3" /><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /></svg>
-          </span>
-        </div>
-        {errores.password && <p className="mt-1 text-xs text-rose-500">{errores.password}</p>}
-      </div>
+      {error && <p className="text-sm text-rose-500">{error}</p>}
 
       <div className="flex items-center justify-end gap-2 pt-2">
-        <button type="button" onClick={onCancel} className="rounded-xl px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold">Cancelar</button>
-        <button type="submit" className="rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold shadow-lg shadow-indigo-600/20">Guardar</button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-xl px-4 py-2 bg-slate-800 text-slate-200 hover:bg-slate-700"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold"
+        >
+          {saving ? "Guardando…" : mode === "create" ? "Guardar" : "Actualizar"}
+        </button>
       </div>
     </form>
   );

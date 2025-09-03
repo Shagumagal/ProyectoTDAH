@@ -1,31 +1,57 @@
-import { useState } from "react";
+// src/features/users/pages/UsersPage.tsx
+import { useEffect, useState } from "react";
 import type { Usuario } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
-import UserForm from "../components/UserForm";
-import type { UserFormCreate, UserFormEdit } from "../components/UserForm";
+import UserForm, { type UserFormOutput } from "../components/UserForm";
+import { getUsers } from "../services/users.services";
 
 type DialogState = { mode: "create" | "edit"; user?: Usuario } | null;
-type FormOutput = UserFormCreate | UserFormEdit;
 
 export default function UsersPage() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>([
-    { id: "1", nombre: "Ana",   apellido: "García", correo: "ana@correo.com",  rol: "Docente",   estado: "Activo" },
-    { id: "2", nombre: "Luis",  apellido: "Pérez",  correo: "luis@correo.com", rol: "Psicólogo", estado: "Activo" },
-    { id: "3", nombre: "Marta", apellido: "Loayza", rol: "Alumno",             estado: "Activo" },
-  ]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(data: FormOutput) {
-    if ("id" in data) {
-      // EDITAR
+  // === carga inicial desde API ===
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await getUsers();
+        if (!cancel) setUsuarios(data);
+      } catch (e: any) {
+        console.error(e);
+        if (!cancel) setError(e?.message || "Error cargando usuarios");
+      } finally {
+        if (!cancel) setLoading(false);
+      }
+    })();
+    return () => { cancel = true; };
+  }, []);
+
+  // Por ahora seguirás creando/edición en local; después lo conectamos a POST/PUT
+  function handleSubmit(data: UserFormOutput) {
+    if (data.id) {
+      // EDITAR (local)
       setUsuarios(prev =>
         prev.map(u =>
-          u.id === data.id ? { ...u, nombre: data.nombre, apellido: data.apellido, correo: data.correo, rol: data.rol } : u
+          u.id === data.id
+            ? { ...u, nombre: data.nombre, apellido: data.apellido, correo: data.correo, rol: data.rol }
+            : u
         )
       );
     } else {
-      // CREAR
-      const nuevo: Usuario = { id: String(Date.now()), estado: "Activo", ...data };
+      // CREAR (local)
+      const nuevo: Usuario = {
+        id: String(Date.now()),
+        estado: "Activo",
+        nombre: data.nombre,
+        apellido: data.apellido,
+        correo: data.correo,
+        rol: data.rol,
+      };
       setUsuarios(prev => [nuevo, ...prev]);
     }
     setDialog(null);
@@ -39,7 +65,8 @@ export default function UsersPage() {
 
   return (
     <section className="grid gap-6">
-      <div className="rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
+      {/* Header */}
+      <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Usuarios</h1>
@@ -59,60 +86,88 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-600 dark:text-slate-300">
-                <th className="py-2 pr-4">Nombre</th>
-                <th className="py-2 pr-4">Rol</th>
-                <th className="py-2 pr-4">Correo</th>
-                <th className="py-2 pr-4">Estado</th>
-                <th className="py-2">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-100">
-              {usuarios.map((u) => (
-                <tr key={u.id}>
-                  <td className="py-3 pr-4">{u.nombre} {u.apellido}</td>
-                  <td className="py-3 pr-4">{u.rol}</td>
-                  <td className="py-3 pr-4">{u.correo ?? <span className="text-slate-400">—</span>}</td>
-                  <td className="py-3 pr-4">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      u.estado === "Activo"
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                        : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                    }`}>
-                      {u.estado}
-                    </span>
-                  </td>
-                  <td className="py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="rounded-lg px-3 py-1 bg-slate-100 dark:bg-slate-800"
-                        onClick={() => setDialog({ mode: "edit", user: u })}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => toggleEstado(u.id)}
-                        className={`rounded-lg px-3 py-1 ${
-                          u.estado === "Activo"
-                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                        }`}
-                      >
-                        {u.estado === "Activo" ? "Inactivar" : "Activar"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Estados: cargando / error / vacío / tabla */}
+      {loading && (
+        <div className="rounded-xl border border-slate-700/20 bg-slate-900/10 dark:bg-slate-800/40 p-4 text-slate-600 dark:text-slate-300">
+          Cargando usuarios…
         </div>
-      </div>
+      )}
 
+      {error && !loading && (
+        <div className="rounded-xl border border-rose-700/40 bg-rose-900/30 text-rose-200 p-3">
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
+          {usuarios.length === 0 ? (
+            <div className="py-16 text-center text-slate-500 dark:text-slate-400">
+              <p className="mb-3">No hay usuarios para mostrar.</p>
+              <button
+                onClick={() => setDialog({ mode: "create" })}
+                className="rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+              >
+                Crear el primero
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-slate-600 dark:text-slate-300">
+                    <th className="py-2 pr-4">Nombre</th>
+                    <th className="py-2 pr-4">Rol</th>
+                    <th className="py-2 pr-4">Correo</th>
+                    <th className="py-2 pr-4">Estado</th>
+                    <th className="py-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-100">
+                  {usuarios.map((u) => (
+                    <tr key={u.id}>
+                      <td className="py-3 pr-4">{u.nombre} {u.apellido}</td>
+                      <td className="py-3 pr-4">{u.rol}</td>
+                      <td className="py-3 pr-4">{u.correo ?? <span className="text-slate-400">—</span>}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          u.estado === "Activo"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        }`}>
+                          {u.estado}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="rounded-lg px-3 py-1 bg-slate-100 dark:bg-slate-800"
+                            onClick={() => setDialog({ mode: "edit", user: u })}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => toggleEstado(u.id)}
+                            className={`rounded-lg px-3 py-1 ${
+                              u.estado === "Activo"
+                                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            }`}
+                          >
+                            {u.estado === "Activo" ? "Inactivar" : "Activar"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal crear/editar */}
       <Modal
         open={!!dialog}
         onClose={() => setDialog(null)}
