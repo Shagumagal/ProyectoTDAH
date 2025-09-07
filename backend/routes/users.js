@@ -8,6 +8,7 @@ const router = express.Router();
 const norm = (s = "") => s.trim().replace(/\s+/g, " ");
 const normUser = (s = "") => s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
 
+
 // ====== GET: listar usuarios (para la tabla) ======
 const ROL_UI = {
   estudiante: "Alumno",
@@ -179,5 +180,151 @@ router.post("/", async (req, res) => {
     return res.status(500).json({ error: "Error de servidor" });
   }
 });
+
+// PUT /users/:id — Editar (nombre completo, email, username, rol_id)
+// PUT /users/:id — Editar (nombre, email, username, rol_id)
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+  const {
+    nombres,      // string | undefined
+    apellidos,    // string | undefined
+    email,        // string | undefined  (NO se acepta null)
+    username,     // string | null | undefined  (SÍ puede ser null)
+    rol,          // 'estudiante' | 'profesor' | 'psicologo' | 'admin' | undefined
+    rol_id,       // number | undefined
+  } = req.body ?? {};
+
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // --- Resolver rol_id si lo mandan ---
+      let roleId = null;
+      if (rol_id != null) {
+        roleId = Number(rol_id);
+      } else if (rol != null && String(rol).trim() !== "") {
+        const v = String(rol).toLowerCase().trim();
+        const r = await client.query(
+          `SELECT id FROM app.roles WHERE lower(nombre) = $1 LIMIT 1`,
+          [v]
+        );
+        roleId = r.rows[0]?.id ?? null;
+        if (roleId === null) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "Rol no válido" });
+        }
+      }
+
+      // --- Construir SET dinámico ---
+      const sets = [];
+      const vals = [id];
+      let i = 1; // $1 = id
+
+      // Nombre: si llegan nombres/apellidos (uno o ambos), debemos actualizar y NO permitir vacío
+      const tocóNombre =
+        Object.prototype.hasOwnProperty.call(req.body, "nombres") ||
+        Object.prototype.hasOwnProperty.call(req.body, "apellidos");
+
+      if (tocóNombre) {
+        const fullName = norm(`${nombres} ${apellidos}`);
+        if (!fullName) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "El nombre no puede ser vacío" });
+        }
+        i++; sets.push(`nombre = $${i}`); vals.push(fullName);
+      }
+
+      // Email: si lo mandan, debe ser string no-vacío y válido (NO se acepta null)
+      if (Object.prototype.hasOwnProperty.call(req.body, "email")) {
+        if (email === null) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "Email no puede ser nulo" });
+        }
+        const em = String(email ?? "").trim();
+        const ok = !!em && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
+        if (!ok) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: "Email inválido" });
+        }
+        i++; sets.push(`email = $${i}::citext`); vals.push(em);
+      }
+
+      // Username: único campo que se puede dejar a NULL
+      if (Object.prototype.hasOwnProperty.call(req.body, "username")) {
+        if (username === null) {
+          sets.push(`username = NULL`); // limpiar
+        } else {
+          const u = normUser(username);
+          // Si queda vacío, lo consideramos "no cambio"
+          if (u) {
+            i++; sets.push(`username = $${i}`); vals.push(u);
+          }
+        }
+      }
+
+      // rol_id si se resolvió
+      if (roleId != null) {
+        i++; sets.push(`rol_id = $${i}`); vals.push(roleId);
+      }
+
+      if (sets.length === 0) {
+        await client.query("ROLLBACK");
+        return res.json({ ok: true, unchanged: true });
+      }
+
+      const q = `
+        UPDATE app.usuarios
+           SET ${sets.join(", ")}, updated_at = now()
+         WHERE id = $1
+        RETURNING id, nombre, email, username, rol_id, activo
+      `;
+      const { rows } = await client.query(q, vals);
+      await client.query("COMMIT");
+
+      if (!rows.length) return res.status(404).json({ error: "Usuario no existe" });
+      res.json(rows[0]);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      if (e.code === "23505") {
+        return res.status(409).json({ error: "Email o username ya existe" });
+      }
+      console.error("PUT /users error:", e);
+      return res.status(500).json({ error: e.message || "Error actualizando" });
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    console.error("PUT /users outer error:", e);
+    return res.status(500).json({ error: "Error de servidor" });
+  }
+});
+
+router.patch("/:id/status", async (req, res) => {
+  const { id } = req.params;
+  const { is_active } = req.body || {};
+  if (typeof is_active !== "boolean") {
+    return res.status(400).json({ error: "is_active debe ser boolean" });
+  }
+  try {
+    const { rows } = await pool.query(
+      `
+      UPDATE app.usuarios
+         SET activo = $2,
+             updated_at = now()
+       WHERE id = $1
+      RETURNING id, nombre, email, username, rol_id, activo
+      `,
+      [id, is_active]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Usuario no existe" });
+    res.json(rows[0]);
+  } catch (e) {
+    console.error("PATCH /users/:id/status error:", e);
+    res.status(500).json({ error: e.message || "Error cambiando estado" });
+  }
+});
+
+//"2FA"
 
 module.exports = router;

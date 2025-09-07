@@ -36,3 +36,26 @@ export async function getUsers(): Promise<Usuario[]> {
   if (!res.ok) throw new Error(txt || "Error cargando usuarios");
   return txt ? (JSON.parse(txt) as Usuario[]) : [];
 }
+
+//Actualizar usuario
+export async function updateUser(id: string, payload: {
+  nombres?: string; apellidos?: string; rol?: string; email?: string | null; username?: string | null; must_change_password?: boolean;
+}) {
+  const res = await fetch(`${API_URL}/users/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function setUserActive(id: string, is_active: boolean) {
+  const res = await fetch(`${API_URL}/users/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_active }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

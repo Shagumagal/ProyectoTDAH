@@ -1,15 +1,22 @@
+// src/features/users/pages/UsersPage.tsx
 import { useEffect, useState } from "react";
 import type { Usuario, RolUI } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
 import UserForm, { type UserFormOutput } from "../components/UserForm";
-import { getUsers, createUser, type RoleDb } from "../services/users.services";
+import {
+  getUsers,
+  createUser,
+  updateUser,
+  setUserActive,
+  type RoleDb,
+} from "../services/users.services";
 
 type DialogState = { mode: "create" | "edit"; user?: Usuario } | null;
 
 const ROL_DB_MAP: Record<RolUI, RoleDb> = {
   Alumno: "estudiante",
   Docente: "profesor",
-  "Psicólogo": "psicologo",
+  Psicólogo: "psicologo",
   Admin: "admin",
 };
 
@@ -33,45 +40,60 @@ export default function UsersPage() {
         if (!cancel) setLoading(false);
       }
     })();
-    return () => { cancel = true; };
+    return () => {
+      cancel = true;
+    };
   }, []);
 
+  async function refresh() {
+    const data = await getUsers();
+    setUsuarios(data);
+  }
+
   async function handleSubmit(data: UserFormOutput) {
-    // CREAR → backend
-    if (!data.id) {
-      try {
+    try {
+      // CREAR
+      if (!data.id) {
         await createUser({
           nombres: data.nombre,
           apellidos: data.apellido,
-          rol: ROL_DB_MAP[data.rol],
+          rol: ROL_DB_MAP[data.rol], // UI -> DB
           email: data.correo,
           username: data.username,
-          password: data.password, // opcional
+          password: data.password ?? undefined,
         });
-        const refreshed = await getUsers();
-        setUsuarios(refreshed);
+        await refresh();
         setDialog(null);
-      } catch (e: any) {
-        alert(e?.message || "Error al crear usuario");
+        return;
       }
-      return;
-    }
 
-    // EDITAR (local por ahora)
-    setUsuarios(prev =>
-      prev.map(u =>
-        u.id === data.id
-          ? { ...u, nombre: data.nombre, apellido: data.apellido, correo: data.correo, rol: data.rol }
-          : u
-      )
-    );
-    setDialog(null);
+      // EDITAR (BACKEND)
+      await updateUser(data.id, {
+        nombres: data.nombre,
+        apellidos: data.apellido,
+        rol: ROL_DB_MAP[data.rol], // UI -> DB
+        email: data.correo ?? null,
+        username: data.username ?? null,
+      });
+
+      await refresh();
+      setDialog(null);
+    } catch (e: any) {
+      alert(e?.message || "Error al guardar usuario");
+    }
   }
 
-  function toggleEstado(id: string) {
-    setUsuarios(prev =>
-      prev.map(u => (u.id === id ? { ...u, estado: u.estado === "Activo" ? "Inactivo" : "Activo" } : u))
-    );
+  async function toggleEstado(id: string) {
+    try {
+      const u = usuarios.find((x) => x.id === id);
+      if (!u) return;
+      const isActiveNow = u.estado === "Activo";
+      // BACKEND: true = activo, false = inactivo
+      await setUserActive(id, !isActiveNow);
+      await refresh();
+    } catch (e: any) {
+      alert(e?.message || "No se pudo cambiar el estado");
+    }
   }
 
   return (
@@ -139,11 +161,13 @@ export default function UsersPage() {
                       <td className="py-3 pr-4">{u.rol}</td>
                       <td className="py-3 pr-4">{u.correo ?? <span className="text-slate-400">—</span>}</td>
                       <td className="py-3 pr-4">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          u.estado === "Activo"
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                        }`}>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            u.estado === "Activo"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                              : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                          }`}
+                        >
                           {u.estado}
                         </span>
                       </td>

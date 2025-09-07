@@ -84,7 +84,7 @@ export default function UserForm({
     if (!usernameOk(u)) return "Usuario inválido. Use 3–24 [a-z0-9_].";
 
     if (rol !== "Alumno" && !e) return "Email es obligatorio para este rol.";
-    if (rol === "Alumno" && !e && !u) return "Para Alumno sin email, ‘Usuario’ es obligatorio.";
+    if (isAlumno && !e && !u) return "Para Alumno sin email, ‘Usuario’ es obligatorio.";
 
     if (mode === "create" && password && password.length < 6) {
       return "La contraseña debe tener al menos 6 caracteres.";
@@ -119,34 +119,39 @@ export default function UserForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className={`grid gap-4 ${className}`}>
+    <form onSubmit={handleSubmit} className={`grid gap-4 ${className}`} noValidate>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Nombre */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Nombre(s)</label>
+          <label htmlFor="nombre" className="block text-sm font-semibold text-slate-300">Nombre(s)</label>
           <input
+            id="nombre"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             placeholder="Juan Carlos"
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            autoComplete="given-name"
           />
         </div>
 
         {/* Apellido */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Apellido(s)</label>
+          <label htmlFor="apellido" className="block text-sm font-semibold text-slate-300">Apellido(s)</label>
           <input
+            id="apellido"
             value={apellido}
             onChange={(e) => setApellido(e.target.value)}
             placeholder="Pérez López"
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            autoComplete="family-name"
           />
         </div>
 
         {/* Rol */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Rol</label>
+          <label htmlFor="rol" className="block text-sm font-semibold text-slate-300">Rol</label>
           <select
+            id="rol"
             value={rol}
             onChange={(e) => setRol(e.target.value as UserFormOutput["rol"])}
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
@@ -160,26 +165,33 @@ export default function UserForm({
 
         {/* Correo */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Correo</label>
+          <label htmlFor="correo" className="block text-sm font-semibold text-slate-300">Correo</label>
           <input
+            id="correo"
             type="email"
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
             placeholder="correo@ejemplo.com"
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            autoComplete="email"
+            inputMode="email"
           />
         </div>
 
         {/* Username */}
         <div className="md:col-span-2">
-          <label className="block text-sm font-semibold text-slate-300">
+          <label htmlFor="username" className="block text-sm font-semibold text-slate-300">
             Usuario <span className="text-slate-400">(si no tiene email)</span>
           </label>
           <input
+            id="username"
             value={username}
             onChange={(e) => setUsername(normalizeUsername(e.target.value))}
             placeholder="alumno_123 (a-z, 0-9, _)"
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            pattern="^[a-z0-9_]{3,24}$"
+            title="3–24 caracteres: a–z, 0–9 y guión bajo"
+            autoComplete="username"
           />
           <p className="mt-1 text-xs text-slate-400">
             Debe cumplir: 3–24, a–z, 0–9 y guión bajo.
@@ -190,29 +202,33 @@ export default function UserForm({
         {mode === "create" && (
           <div className="md:col-span-2">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-semibold text-slate-300">
+              <label htmlFor="password" className="block text-sm font-semibold text-slate-300">
                 Contraseña <span className="text-slate-400">(opcional)</span>
               </label>
               <button
                 type="button"
                 onClick={() => setShowPass((s) => !s)}
                 className="text-xs text-indigo-400 hover:text-indigo-300"
+                aria-pressed={showPass}
               >
                 {showPass ? "Ocultar" : "Mostrar"}
               </button>
             </div>
             <input
+              id="password"
               type={showPass ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Mín. 6 caracteres"
               className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              autoComplete="new-password"
+              minLength={6}
             />
           </div>
         )}
       </div>
 
-      {error && <p className="text-sm text-rose-500">{error}</p>}
+      {error && <p className="text-sm text-rose-500" role="alert">{error}</p>}
 
       <div className="flex items-center justify-end gap-2 pt-2">
         <button
@@ -226,6 +242,7 @@ export default function UserForm({
           type="submit"
           disabled={saving}
           className="rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold"
+          aria-busy={saving}
         >
           {saving ? "Guardando…" : mode === "create" ? "Guardar" : "Actualizar"}
         </button>
