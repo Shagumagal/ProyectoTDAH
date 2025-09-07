@@ -1,11 +1,17 @@
-// src/features/users/pages/UsersPage.tsx
 import { useEffect, useState } from "react";
-import type { Usuario } from "../../../lib/types";
+import type { Usuario, RolUI } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
 import UserForm, { type UserFormOutput } from "../components/UserForm";
-import { getUsers } from "../services/users.services";
+import { getUsers, createUser, type RoleDb } from "../services/users.services";
 
 type DialogState = { mode: "create" | "edit"; user?: Usuario } | null;
+
+const ROL_DB_MAP: Record<RolUI, RoleDb> = {
+  Alumno: "estudiante",
+  Docente: "profesor",
+  "Psicólogo": "psicologo",
+  Admin: "admin",
+};
 
 export default function UsersPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -13,7 +19,6 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // === carga inicial desde API ===
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -31,29 +36,35 @@ export default function UsersPage() {
     return () => { cancel = true; };
   }, []);
 
-  // Por ahora seguirás creando/edición en local; después lo conectamos a POST/PUT
-  function handleSubmit(data: UserFormOutput) {
-    if (data.id) {
-      // EDITAR (local)
-      setUsuarios(prev =>
-        prev.map(u =>
-          u.id === data.id
-            ? { ...u, nombre: data.nombre, apellido: data.apellido, correo: data.correo, rol: data.rol }
-            : u
-        )
-      );
-    } else {
-      // CREAR (local)
-      const nuevo: Usuario = {
-        id: String(Date.now()),
-        estado: "Activo",
-        nombre: data.nombre,
-        apellido: data.apellido,
-        correo: data.correo,
-        rol: data.rol,
-      };
-      setUsuarios(prev => [nuevo, ...prev]);
+  async function handleSubmit(data: UserFormOutput) {
+    // CREAR → backend
+    if (!data.id) {
+      try {
+        await createUser({
+          nombres: data.nombre,
+          apellidos: data.apellido,
+          rol: ROL_DB_MAP[data.rol],
+          email: data.correo,
+          username: data.username,
+          password: data.password, // opcional
+        });
+        const refreshed = await getUsers();
+        setUsuarios(refreshed);
+        setDialog(null);
+      } catch (e: any) {
+        alert(e?.message || "Error al crear usuario");
+      }
+      return;
     }
+
+    // EDITAR (local por ahora)
+    setUsuarios(prev =>
+      prev.map(u =>
+        u.id === data.id
+          ? { ...u, nombre: data.nombre, apellido: data.apellido, correo: data.correo, rol: data.rol }
+          : u
+      )
+    );
     setDialog(null);
   }
 
@@ -65,7 +76,6 @@ export default function UsersPage() {
 
   return (
     <section className="grid gap-6">
-      {/* Header */}
       <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -86,7 +96,6 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Estados: cargando / error / vacío / tabla */}
       {loading && (
         <div className="rounded-xl border border-slate-700/20 bg-slate-900/10 dark:bg-slate-800/40 p-4 text-slate-600 dark:text-slate-300">
           Cargando usuarios…
@@ -167,7 +176,6 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Modal crear/editar */}
       <Modal
         open={!!dialog}
         onClose={() => setDialog(null)}
