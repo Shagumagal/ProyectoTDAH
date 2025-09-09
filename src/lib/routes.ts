@@ -4,4 +4,5 @@ app: "/app",
 usuarios: "/app/usuarios",
 videojuego: "/app/videojuego",
 resultados: "/app/resultados",
+ authCode: "/auth/code",
 } as const;

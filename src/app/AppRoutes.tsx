@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "./layout/AppShell";
 import { ROUTES } from "../lib/routes";
+import TwoFactorPage from "../features/auth/TwoFactorPage";
 
 const UsersPage = lazy(() => import("../features/users/pages/UsersPage"));
 const LoginPage = lazy(() => import("../features/auth/LoginPage")); // asegúrate de que exista
@@ -17,7 +18,7 @@ export default function AppRoutes() {
           <Route path={ROUTES.usuarios} element={<AppShell><UsersPage /></AppShell>} />
           <Route path={ROUTES.videojuego} element={<AppShell><div className="p-6">Videojuego (pendiente)</div></AppShell>} />
           <Route path={ROUTES.resultados} element={<AppShell><div className="p-6">Resultados (pendiente)</div></AppShell>} />
-
+          <Route path="/auth/code" element={<TwoFactorPage />} />
           <Route path={ROUTES.app} element={<Navigate to={ROUTES.usuarios} replace />} />
           <Route path="*" element={<Navigate to={ROUTES.usuarios} replace />} />
            <Route path="*" element={<Navigate to="/app/usuarios" replace />} />

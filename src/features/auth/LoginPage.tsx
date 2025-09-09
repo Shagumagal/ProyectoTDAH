@@ -1,7 +1,44 @@
+// src/features/auth/LoginPage.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-// 👇 Ajusta la ruta si tu servicio está en otro lugar:
+
+import { ROUTES } from "../../lib/routes";
 import { loginPassword, loginWithCode } from "./services/auth.services";
+
+/* === Type guards locales (no cambian tus servicios/typings) === */
+type AnyObj = Record<string, any>;
+
+function has<K extends string>(o: unknown, k: K): o is AnyObj & Record<K, unknown> {
+  return !!o && typeof o === "object" && k in (o as AnyObj);
+}
+
+function isTwoFARequired(o: unknown): o is {
+  status: "2FA_REQUIRED";
+  user_id: number;
+  email: string;
+  expires_in?: number;
+  role?: string;
+  must_change?: boolean;
+} {
+  return has(o, "status") && (o as AnyObj).status === "2FA_REQUIRED" && has(o, "user_id") && has(o, "email");
+}
+
+function isLoginOk(o: unknown): o is {
+  status?: "OK";
+  token?: string;
+  user?: { id: number; role: string; must_change?: boolean };
+  user_id?: number; // compat
+  role?: string;
+  must_change?: boolean;
+} {
+  // OK moderno con status, o compat con user_id
+  return (has(o, "status") && (o as AnyObj).status === "OK") || has(o, "user_id");
+}
+
+function isErrorResp(o: unknown): o is { error: string } {
+  return has(o, "error") && typeof (o as AnyObj).error === "string";
+}
+/* ============================================================= */
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -15,7 +52,7 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState(""); // correo o usuario
   const [password, setPassword] = useState("");
 
-  // code mode
+  // code mode (alumnos sin email)
   const [username, setUsername] = useState("");
   const [code, setCode] = useState("");
 
@@ -25,11 +62,24 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const r = await loginPassword(identifier.trim(), password);
-      if (r?.must_change) {
-        // Si quieres un flujo dedicado, redirige a /cambiar-clave aquí
-        alert("Debes cambiar tu contraseña tras iniciar sesión.");
+
+      if (isTwoFARequired(r)) {
+        sessionStorage.setItem("pending2fa", JSON.stringify({ user_id: r.user_id, email: r.email }));
+        nav(ROUTES.authCode);
+        return;
       }
-      nav("/usuarios");
+
+      if (isLoginOk(r)) {
+        if ("token" in r && r.token) localStorage.setItem("auth_token", r.token as string);
+        if (("must_change" in r && r.must_change) || ("user" in r && (r as AnyObj).user?.must_change)) {
+          console.warn("El usuario debe cambiar su contraseña tras el acceso.");
+        }
+        nav(ROUTES.usuarios);
+        return;
+      }
+
+      if (isErrorResp(r)) throw new Error(mapError(r.error));
+      throw new Error("Credenciales inválidas");
     } catch (err: any) {
       setError(err?.message || "Error de inicio de sesión");
     } finally {
@@ -42,9 +92,19 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await loginWithCode(username.trim(), code.trim());
-      alert("Ingresa una nueva contraseña al acceder (primer uso).");
-      nav("/usuarios");
+      const r = await loginWithCode(username.trim(), code.trim());
+
+      if (isLoginOk(r)) {
+        if ("token" in r && r.token) localStorage.setItem("auth_token", r.token as string);
+        if ("user" in r && (r as AnyObj).user?.must_change) {
+          console.info("El usuario debe cambiar su contraseña en el primer inicio de sesión.");
+        }
+        nav(ROUTES.usuarios);
+        return;
+      }
+
+      if (isErrorResp(r)) throw new Error(mapError(r.error));
+      throw new Error("Código inválido o expirado");
     } catch (err: any) {
       setError(err?.message || "Código inválido o expirado");
     } finally {
@@ -68,25 +128,23 @@ export default function LoginPage() {
             {mode === "password" ? (
               <form onSubmit={submitPassword} className="grid gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Correo o usuario
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Correo o usuario</label>
                   <input
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="tu@correo.com o usuario"
+                    autoComplete="username"
                     className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 px-4 py-3 text-base font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/90 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Contraseña
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Contraseña</label>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
                     className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 px-4 py-3 text-base font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/90 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   />
                 </div>
@@ -101,11 +159,7 @@ export default function LoginPage() {
                 </button>
 
                 <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setMode("code")}
-                    className="font-semibold text-indigo-600 dark:text-indigo-400"
-                  >
+                  <button type="button" onClick={() => setMode("code")} className="font-semibold text-indigo-600 dark:text-indigo-400">
                     Tengo un código
                   </button>
                   <span>·</span>
@@ -117,26 +171,22 @@ export default function LoginPage() {
             ) : (
               <form onSubmit={submitCode} className="grid gap-4">
                 <div className="rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200/60 dark:border-indigo-800 p-3 text-xs text-indigo-900 dark:text-indigo-200">
-                  Para alumnos sin email: ingresa tu <strong>usuario</strong> y el{" "}
-                  <strong>código de 6 dígitos</strong> que te dio tu profesor/administrador.
+                  Para alumnos sin email: ingresa tu <strong>usuario</strong> y el <strong>código de 6 dígitos</strong> que te dio tu profesor/administrador.
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Usuario
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Usuario</label>
                   <input
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="tu_usuario"
+                    autoComplete="username"
                     className="mt-1 w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/60 px-4 py-3 text-base font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-white/90 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Código (6 dígitos)
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Código (6 dígitos)</label>
                   <input
                     inputMode="numeric"
                     pattern="[0-9]{6}"
@@ -158,11 +208,7 @@ export default function LoginPage() {
                 </button>
 
                 <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setMode("password")}
-                    className="font-semibold text-indigo-600 dark:text-indigo-400"
-                  >
+                  <button type="button" onClick={() => setMode("password")} className="font-semibold text-indigo-600 dark:text-indigo-400">
                     Volver a contraseña
                   </button>
                 </div>
@@ -177,4 +223,20 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+/** Mapear errores técnicos a mensajes amigables */
+function mapError(code: string): string {
+  switch (code) {
+    case "INVALID_CREDENTIALS":
+      return "Credenciales inválidas";
+    case "NO_CODE":
+      return "No hay un código pendiente.";
+    case "INVALID_OR_EXPIRED":
+      return "El código es inválido o ha expirado.";
+    case "NOT_FOUND":
+      return "Usuario no encontrado.";
+    default:
+      return code;
+  }
 }

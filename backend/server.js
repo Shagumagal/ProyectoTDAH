@@ -7,6 +7,9 @@ const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 
 const app = express();
+// backend/server.js
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") }); // <-- apunta a backend/.env
 
 // 👇 CORS con PATCH y respuesta a preflight
 const corsOptions = {
@@ -31,3 +34,4 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`API escuchando en http://localhost:${PORT}`);
 });
+console.log("JWT loaded?", !!process.env.JWT_SECRET);
