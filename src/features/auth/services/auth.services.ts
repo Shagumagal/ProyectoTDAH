@@ -8,9 +8,14 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
   const txt = await res.text();
-  if (!res.ok) throw new Error(txt || "Error de servidor");
-  return txt ? JSON.parse(txt) as T : ({} as T);
+  if (!res.ok) {
+    let msg = "Error de servidor";
+    try { msg = (JSON.parse(txt)?.error) || msg; } catch {}
+    throw new Error(msg);
+  }
+  return txt ? (JSON.parse(txt) as T) : ({} as T);
 }
 
 export async function loginPassword(identifier: string, password: string): Promise<Resp> {

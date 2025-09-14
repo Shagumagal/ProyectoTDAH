@@ -17,9 +17,30 @@ const ROL_UI = {
   admin: "Admin",
 };
 
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const role = (req.query.role || "").toString().trim().toLowerCase(); // p.ej. estudiante
+    const q = (req.query.q || "").toString().trim();                     // búsqueda libre
+
+    // Armamos WHERE dinámico
+    const where = [];
+    const params = [];
+    let i = 0;
+
+    if (role) {
+      i++; where.push(`r.nombre = $${i}`); params.push(role);
+    }
+    if (q) {
+      i++;
+      where.push(`(
+        u.nombre ILIKE $${i} OR
+        u.email::text ILIKE $${i} OR
+        COALESCE(u.username,'') ILIKE $${i}
+      )`);
+      params.push(`%${q}%`);
+    }
+
+    const sql = `
       SELECT
         u.id,
         u.nombre AS nombre_completo,
@@ -29,8 +50,11 @@ router.get("/", async (_req, res) => {
         r.nombre AS rol_db
       FROM app.usuarios u
       JOIN app.roles r ON r.id = u.rol_id
+      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
       ORDER BY u.created_at DESC
-    `);
+    `;
+
+    const { rows } = await pool.query(sql, params);
 
     const data = rows.map((x) => {
       const full = (x.nombre_completo || "").trim();
@@ -326,5 +350,6 @@ router.patch("/:id/status", async (req, res) => {
 });
 
 //"2FA"
+//usuarios
 
 module.exports = router;

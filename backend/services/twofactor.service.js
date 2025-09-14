@@ -64,5 +64,15 @@ async function verifyTwoFactor({ userId, code }) {
 async function resendTwoFactor(user) {
   return startTwoFactor(user);
 }
+function requiresTwoFA(user) {
+  // acepta user.rol / user.role / user.rol_nombre (string)
+  const role =
+    (user?.rol || user?.role || user?.rol_nombre || "").toString().toLowerCase();
 
+  const list = (process.env.TWOFA_ROLES || "admin,profesor,psicologo")
+    .split(",")
+    .map(s => s.trim().toLowerCase());
+
+  return list.includes(role);
+}
 module.exports = { startTwoFactor, verifyTwoFactor, resendTwoFactor };
