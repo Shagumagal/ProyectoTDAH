@@ -1,6 +1,7 @@
 // backend/routes/users.js
 const express = require("express");
 const { pool } = require("../db");
+const { requireAuth, requireRole } = require("../middlewares/auth");
 
 const router = express.Router();
 
@@ -8,6 +9,8 @@ const router = express.Router();
 const norm = (s = "") => s.trim().replace(/\s+/g, " ");
 const normUser = (s = "") => s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
 
+// Todas las rutas de /users requieren estar autenticado
+router.use(requireAuth);
 
 // ====== GET: listar usuarios (para la tabla) ======
 const ROL_UI = {
@@ -19,52 +22,44 @@ const ROL_UI = {
 
 router.get("/", async (req, res) => {
   try {
-    const role = (req.query.role || "").toString().trim().toLowerCase(); // p.ej. estudiante
-    const q = (req.query.q || "").toString().trim();                     // búsqueda libre
+    const myRole = (req.auth?.role || "").toLowerCase();
+    let roleQ = (req.query.role || "").toString().trim().toLowerCase();
 
-    // Armamos WHERE dinámico
+    if (myRole === "admin") {
+      // sin restricciones
+    } else if (myRole === "profesor") {
+      if (!roleQ) roleQ = "estudiante";         // ← por defecto alumnos
+      if (roleQ !== "estudiante") {
+        return res.status(403).json({ error: "FORBIDDEN" });
+      }
+    } else {
+      return res.status(403).json({ error: "FORBIDDEN" });
+    }
+
+    const q = (req.query.q || "").toString().trim();
     const where = [];
     const params = [];
     let i = 0;
 
-    if (role) {
-      i++; where.push(`r.nombre = $${i}`); params.push(role);
-    }
-    if (q) {
-      i++;
-      where.push(`(
-        u.nombre ILIKE $${i} OR
-        u.email::text ILIKE $${i} OR
-        COALESCE(u.username,'') ILIKE $${i}
-      )`);
-      params.push(`%${q}%`);
-    }
+    if (roleQ) { i++; where.push(`r.nombre = $${i}`); params.push(roleQ); }
+    if (q) { i++; where.push(`(u.nombre ILIKE $${i} OR u.email::text ILIKE $${i} OR COALESCE(u.username,'') ILIKE $${i})`); params.push(`%${q}%`); }
 
     const sql = `
-      SELECT
-        u.id,
-        u.nombre AS nombre_completo,
-        u.email,
-        u.username,
-        u.activo,
-        r.nombre AS rol_db
+      SELECT u.id, u.nombre AS nombre_completo, u.email, u.username, u.activo, r.nombre AS rol_db
       FROM app.usuarios u
       JOIN app.roles r ON r.id = u.rol_id
       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
       ORDER BY u.created_at DESC
     `;
-
     const { rows } = await pool.query(sql, params);
 
+    const ROL_UI = { estudiante: "Alumno", profesor: "Docente", psicologo: "Psicólogo", admin: "Admin" };
     const data = rows.map((x) => {
-      const full = (x.nombre_completo || "").trim();
-      const parts = full.split(/\s+/);
+      const parts = (x.nombre_completo || "").trim().split(/\s+/);
       const nombre = parts.shift() || "";
       const apellido = parts.join(" ");
       return {
-        id: x.id,
-        nombre,
-        apellido,
+        id: x.id, nombre, apellido,
         correo: x.email || undefined,
         username: x.username || undefined,
         rol: ROL_UI[x.rol_db] || "Alumno",
@@ -79,8 +74,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ====== POST: crear usuario (defensivo vs. migraciones faltantes) ======
-router.post("/", async (req, res) => {
+
+// ====== POST: crear usuario ======
+// admin → puede crear cualquier rol
+// profesor → SOLO puede crear estudiantes
+router.post("/", requireRole("admin", "profesor"), async (req, res) => {
   const {
     nombres = "",
     apellidos = "",
@@ -90,10 +88,14 @@ router.post("/", async (req, res) => {
     password = "",  // opcional
   } = req.body || {};
 
-  console.log("POST /users payload:", req.body);
-
   try {
     if (!rol) return res.status(400).json({ error: "Rol es obligatorio" });
+
+    // Regla para profesor
+    const actor = (req.auth?.role || "").toLowerCase();
+    if (actor === "profesor" && rol !== "estudiante") {
+      return res.status(403).json({ error: "FORBIDDEN" });
+    }
 
     const fullName = norm(`${nombres} ${apellidos}`);
     if (!fullName) return res.status(400).json({ error: "Nombre(s) o Apellido(s) requerido(s)" });
@@ -127,7 +129,7 @@ router.post("/", async (req, res) => {
       }
       const rolId = r.rows[0].id;
 
-      // Descubrir columnas existentes (para soportar instalaciones parciales)
+      // Descubrir columnas existentes
       const colsRes = await client.query(`
         SELECT column_name
         FROM information_schema.columns
@@ -137,7 +139,6 @@ router.post("/", async (req, res) => {
 
       const passwordForDb = hasPassword ? password : `${Date.now()}_${Math.random()}`;
 
-      // Armamos el INSERT según columnas disponibles
       let insertSql;
       let params;
 
@@ -165,7 +166,7 @@ router.post("/", async (req, res) => {
       const userId = ins.rows[0].id;
       let loginCode = null;
 
-      // Alumno sin password → emitir código si existen las columnas correspondientes
+      // Alumno sin password → emitir código si existen columnas
       if (
         rol === "estudiante" &&
         !hasPassword &&
@@ -192,10 +193,7 @@ router.post("/", async (req, res) => {
         return res.status(409).json({ error: "Email o username ya existe" });
       }
       console.error("create-user error:", e);
-       console.error("create-user error:", e);
-  // 👇 TEMPORAL: muestra el detalle al front para depurar
-  return res.status(500).json({ error: e.message || "Error de servidor" });
-      return res.status(500).json({ error: "Error de servidor" });
+      return res.status(500).json({ error: e.message || "Error de servidor" });
     } finally {
       client.release();
     }
@@ -205,25 +203,45 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PUT /users/:id — Editar (nombre completo, email, username, rol_id)
-// PUT /users/:id — Editar (nombre, email, username, rol_id)
-router.put("/:id", async (req, res) => {
+// ====== PUT: editar usuario ======
+// admin → puede editar cualquiera
+// profesor → solo puede editar ESTUDIANTES y no puede cambiar su rol
+// ====== PUT: editar usuario ======
+// admin → puede editar cualquiera
+// profesor → solo puede editar ESTUDIANTES y no puede cambiar su rol
+router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
   const { id } = req.params;
   const {
-    nombres,      // string | undefined
-    apellidos,    // string | undefined
-    email,        // string | undefined  (NO se acepta null)
-    username,     // string | null | undefined  (SÍ puede ser null)
-    rol,          // 'estudiante' | 'profesor' | 'psicologo' | 'admin' | undefined
-    rol_id,       // number | undefined
+    nombres, apellidos, email, username, rol, rol_id,
   } = req.body ?? {};
 
   try {
+    const actor = (req.auth?.role || "").toLowerCase();
+
+    // Si es profesor, validar target y **ignorar** cualquier intento de cambio de rol
+    if (actor === "profesor") {
+      // Verificar que el usuario destino sea estudiante
+      const chk = await pool.query(`
+        SELECT r.nombre AS rol
+        FROM app.usuarios u
+        JOIN app.roles r ON r.id = u.rol_id
+        WHERE u.id = $1
+        LIMIT 1
+      `, [id]);
+      const targetRole = chk.rows[0]?.rol;
+      if (targetRole !== "estudiante") {
+        return res.status(403).json({ error: "FORBIDDEN" });
+      }
+      // Sanitizar: si viene 'rol' o 'rol_id' en el body, ignorarlos
+      if (Object.prototype.hasOwnProperty.call(req.body, "rol")) delete req.body.rol;
+      if (Object.prototype.hasOwnProperty.call(req.body, "rol_id")) delete req.body.rol_id;
+    }
+
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      // --- Resolver rol_id si lo mandan ---
+      // --- Resolver rol_id si lo mandan (solo aplicará para admin; profesor ya se sanitizó arriba) ---
       let roleId = null;
       if (rol_id != null) {
         roleId = Number(rol_id);
@@ -245,12 +263,12 @@ router.put("/:id", async (req, res) => {
       const vals = [id];
       let i = 1; // $1 = id
 
-      // Nombre: si llegan nombres/apellidos (uno o ambos), debemos actualizar y NO permitir vacío
-      const tocóNombre =
+      // Nombre
+      const tocoNombre =
         Object.prototype.hasOwnProperty.call(req.body, "nombres") ||
         Object.prototype.hasOwnProperty.call(req.body, "apellidos");
 
-      if (tocóNombre) {
+      if (tocoNombre) {
         const fullName = norm(`${nombres} ${apellidos}`);
         if (!fullName) {
           await client.query("ROLLBACK");
@@ -259,7 +277,7 @@ router.put("/:id", async (req, res) => {
         i++; sets.push(`nombre = $${i}`); vals.push(fullName);
       }
 
-      // Email: si lo mandan, debe ser string no-vacío y válido (NO se acepta null)
+      // Email (NO null)
       if (Object.prototype.hasOwnProperty.call(req.body, "email")) {
         if (email === null) {
           await client.query("ROLLBACK");
@@ -274,20 +292,19 @@ router.put("/:id", async (req, res) => {
         i++; sets.push(`email = $${i}::citext`); vals.push(em);
       }
 
-      // Username: único campo que se puede dejar a NULL
+      // Username (puede ser NULL)
       if (Object.prototype.hasOwnProperty.call(req.body, "username")) {
         if (username === null) {
-          sets.push(`username = NULL`); // limpiar
+          sets.push(`username = NULL`);
         } else {
           const u = normUser(username);
-          // Si queda vacío, lo consideramos "no cambio"
           if (u) {
             i++; sets.push(`username = $${i}`); vals.push(u);
           }
         }
       }
 
-      // rol_id si se resolvió
+      // rol_id si se resolvió (esto solo llegará por admin)
       if (roleId != null) {
         i++; sets.push(`rol_id = $${i}`); vals.push(roleId);
       }
@@ -324,13 +341,31 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-router.patch("/:id/status", async (req, res) => {
+// ====== PATCH estado ======
+// admin → puede activar/inactivar cualquiera
+// profesor → solo puede activar/inactivar ESTUDIANTES
+router.patch("/:id/status", requireRole("admin", "profesor"), async (req, res) => {
   const { id } = req.params;
   const { is_active } = req.body || {};
   if (typeof is_active !== "boolean") {
     return res.status(400).json({ error: "is_active debe ser boolean" });
   }
+
   try {
+    const actor = (req.auth?.role || "").toLowerCase();
+    if (actor === "profesor") {
+      const chk = await pool.query(`
+        SELECT r.nombre AS rol
+        FROM app.usuarios u
+        JOIN app.roles r ON r.id = u.rol_id
+        WHERE u.id = $1
+        LIMIT 1
+      `, [id]);
+      if (chk.rows[0]?.rol !== "estudiante") {
+        return res.status(403).json({ error: "FORBIDDEN" });
+      }
+    }
+
     const { rows } = await pool.query(
       `
       UPDATE app.usuarios
@@ -348,8 +383,5 @@ router.patch("/:id/status", async (req, res) => {
     res.status(500).json({ error: e.message || "Error cambiando estado" });
   }
 });
-
-//"2FA"
-//usuarios
 
 module.exports = router;

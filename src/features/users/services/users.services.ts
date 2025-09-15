@@ -1,5 +1,6 @@
-// src/features/users/services/users.service.ts
-import type { Usuario } from "../../../lib/types";  // ⬅️ FALTABA
+// src/features/users/services/users.services.ts
+import type { Usuario } from "../../../lib/types";
+import { authHeaders } from "../../../lib/http";          // ⬅️ IMPORTA EL HELPER
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -8,10 +9,10 @@ export type RoleDb = "estudiante" | "profesor" | "psicologo" | "admin";
 export interface CreateUserPayload {
   nombres: string;
   apellidos: string;
-  rol: RoleDb;        // valores exactos del backend
+  rol: RoleDb;
   email?: string;
   username?: string;
-  password?: string;  // opcional
+  password?: string;
 }
 
 export interface CreateUserResp {
@@ -22,7 +23,7 @@ export interface CreateUserResp {
 export async function createUser(payload: CreateUserPayload): Promise<CreateUserResp> {
   const res = await fetch(`${API_URL}/users`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }), // ⬅️ AQUÍ
     body: JSON.stringify(payload),
   });
   const text = await res.text();
@@ -31,19 +32,20 @@ export async function createUser(payload: CreateUserPayload): Promise<CreateUser
 }
 
 export async function getUsers(): Promise<Usuario[]> {
-  const res = await fetch(`${API_URL}/users`);
+  const res = await fetch(`${API_URL}/users`, {
+    headers: authHeaders(),                                    // ⬅️ AQUÍ
+  });
   const txt = await res.text();
   if (!res.ok) throw new Error(txt || "Error cargando usuarios");
   return txt ? (JSON.parse(txt) as Usuario[]) : [];
 }
 
-//Actualizar usuario
 export async function updateUser(id: string, payload: {
   nombres?: string; apellidos?: string; rol?: string; email?: string | null; username?: string | null; must_change_password?: boolean;
 }) {
   const res = await fetch(`${API_URL}/users/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: "PUT",
+    headers: authHeaders({ "Content-Type": "application/json" }), // ⬅️ AQUÍ
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -52,8 +54,8 @@ export async function updateUser(id: string, payload: {
 
 export async function setUserActive(id: string, is_active: boolean) {
   const res = await fetch(`${API_URL}/users/${id}/status`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    method: "PATCH",
+    headers: authHeaders({ "Content-Type": "application/json" }), // ⬅️ AQUÍ
     body: JSON.stringify({ is_active }),
   });
   if (!res.ok) throw new Error(await res.text());

@@ -1,3 +1,4 @@
+// backend/middlewares/auth.js
 const jwt = require("jsonwebtoken");
 
 function getToken(req) {
@@ -12,8 +13,8 @@ function requireAuth(req, res, next) {
     if (!token) return res.status(401).json({ error: "UNAUTHENTICATED" });
     if (!process.env.JWT_SECRET) return res.status(500).json({ error: "SERVER_MISCONFIG" });
 
-    const p = jwt.verify(token, process.env.JWT_SECRET);
-    req.auth = { userId: p.sub, role: p.role }; // 'admin'|'profesor'|'psicologo'|'estudiante'
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.auth = { userId: payload.sub, role: payload.role }; // 'admin'|'profesor'|'psicologo'|'estudiante'
     next();
   } catch {
     return res.status(401).json({ error: "UNAUTHENTICATED" });
@@ -29,7 +30,8 @@ function requireRole(...allowed) {
   };
 }
 
-module.exports = { requireAuth, requireRole };
-// helpers/roles.js (opcional)
-function isStaff(role) { return role === "profesor" || role === "psicologo"; }
-module.exports = { isStaff };
+function isStaff(role) {
+  return role === "profesor" || role === "psicologo";
+}
+
+module.exports = { requireAuth, requireRole, getToken, isStaff };
