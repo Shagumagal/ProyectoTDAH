@@ -8,4 +8,5 @@ resultados: "/app/resultados",
  alumnos: "/app/alumnos",
  forgot: "/auth/forgot",
   reset: "/auth/reset",
+    perfil: "/app/perfil"
 } as const;

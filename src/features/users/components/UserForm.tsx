@@ -1,3 +1,4 @@
+// src/features/users/components/UserForm.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import type { Usuario } from "../../../lib/types";
 
@@ -10,6 +11,7 @@ export type UserFormOutput = {
   rol: "Alumno" | "Docente" | "Psicólogo" | "Admin";
   username?: string;     // solo si quieres manejar alumno sin email
   password?: string;     // opcional (solo creación)
+  fecha_nacimiento?: string; // YYYY-MM-DD
 };
 
 export type UserFormMode = "create" | "edit";
@@ -31,6 +33,24 @@ const emailOk = (v: string) =>
 const usernameOk = (v: string) =>
   !v || /^[a-z0-9_]{3,24}$/.test(v);
 
+// Helpers fecha (edad mínima 5 años)
+function fmtYYYYMMDD(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+function ageOk5(s: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const cut = new Date();
+  cut.setFullYear(cut.getFullYear() - 5);
+  // rango razonable
+  const min = new Date(1900, 0, 1);
+  return dt <= cut && dt >= min;
+}
+
 export default function UserForm({
   mode,
   initialUser,
@@ -46,12 +66,21 @@ export default function UserForm({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState(""); // solo creación
   const [showPass, setShowPass] = useState(false);
+  const [fechaNac, setFechaNac] = useState(""); // YYYY-MM-DD
 
   // ui
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isAlumno = useMemo(() => rol === "Alumno", [rol]);
+
+  // límites del date picker
+  const maxDOB = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 5);
+    return fmtYYYYMMDD(d);
+  }, []);
+  const minDOB = "1900-01-01";
 
   // precargar datos si estamos editando
   useEffect(() => {
@@ -64,6 +93,7 @@ export default function UserForm({
       setCorreo(initialUser.correo ?? "");
       setUsername((initialUser as any).username ?? "");
       setPassword("");
+      setFechaNac(initialUser.fecha_nacimiento || "");
     } else {
       setNombre("");
       setApellido("");
@@ -71,6 +101,7 @@ export default function UserForm({
       setCorreo("");
       setUsername("");
       setPassword("");
+      setFechaNac("");
     }
     setError(null);
   }, [mode, initialUser]);
@@ -85,6 +116,10 @@ export default function UserForm({
 
     if (rol !== "Alumno" && !e) return "Email es obligatorio para este rol.";
     if (isAlumno && !e && !u) return "Para Alumno sin email, ‘Usuario’ es obligatorio.";
+
+    // Fecha de nacimiento
+    if (isAlumno && !fechaNac) return "Fecha de nacimiento es obligatoria para Alumno.";
+    if (fechaNac && !ageOk5(fechaNac)) return "La fecha debe indicar al menos 5 años de edad.";
 
     if (mode === "create" && password && password.length < 6) {
       return "La contraseña debe tener al menos 6 caracteres.";
@@ -106,6 +141,7 @@ export default function UserForm({
       correo: correo.trim() || undefined,
       username: normalizeUsername(username) || undefined,
       ...(mode === "create" && password ? { password } : {}),
+      fecha_nacimiento: fechaNac || undefined,
     };
 
     try {
@@ -176,6 +212,25 @@ export default function UserForm({
             autoComplete="email"
             inputMode="email"
           />
+        </div>
+
+        {/* Fecha de nacimiento */}
+        <div>
+          <label htmlFor="dob" className="block text-sm font-semibold text-slate-300">
+            Fecha de nacimiento {rol === "Alumno" && <span className="text-rose-400">*</span>}
+          </label>
+          <input
+            id="dob"
+            type="date"
+            value={fechaNac}
+            onChange={(e) => setFechaNac(e.target.value)}
+            min={minDOB}
+            max={maxDOB}
+            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Debe tener al menos 5 años. {rol !== "Alumno" ? "(opcional)" : ""}
+          </p>
         </div>
 
         {/* Username */}

@@ -10,4 +10,5 @@ export interface Usuario {
   rol: RolUI;               // incluye Admin
   estado: Estado;
   username?: string;        // algunos alumnos sin correo
+   fecha_nacimiento?: string | null;
 }

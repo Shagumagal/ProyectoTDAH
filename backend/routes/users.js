@@ -5,7 +5,26 @@ const { requireAuth, requireRole } = require("../middlewares/auth");
 
 const router = express.Router();
 
-// Helpers
+/* -------------------- helpers fecha de nacimiento -------------------- */
+function parseDateOnly(s = "") {
+  // YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  // evita 2025-02-31, etc.
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return dt;
+}
+function isAtLeast5YearsOld(s) {
+  const dt = parseDateOnly(s);
+  if (!dt) return false;
+  const today = new Date();
+  const cutoff = new Date(Date.UTC(today.getFullYear() - 5, today.getMonth(), today.getDate()));
+  // rango razonable
+  return dt <= cutoff && dt >= new Date(Date.UTC(1900, 0, 1));
+}
+
+/* ------------------------------ helpers ------------------------------ */
 const norm = (s = "") => s.trim().replace(/\s+/g, " ");
 const normUser = (s = "") => s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
 
@@ -28,7 +47,7 @@ router.get("/", async (req, res) => {
     if (myRole === "admin") {
       // sin restricciones
     } else if (myRole === "profesor") {
-      if (!roleQ) roleQ = "estudiante";         // ← por defecto alumnos
+      if (!roleQ) roleQ = "estudiante"; // por defecto alumnos
       if (roleQ !== "estudiante") {
         return res.status(403).json({ error: "FORBIDDEN" });
       }
@@ -45,7 +64,14 @@ router.get("/", async (req, res) => {
     if (q) { i++; where.push(`(u.nombre ILIKE $${i} OR u.email::text ILIKE $${i} OR COALESCE(u.username,'') ILIKE $${i})`); params.push(`%${q}%`); }
 
     const sql = `
-      SELECT u.id, u.nombre AS nombre_completo, u.email, u.username, u.activo, r.nombre AS rol_db
+      SELECT
+        u.id,
+        u.nombre AS nombre_completo,
+        u.email,
+        u.username,
+        u.activo,
+        r.nombre AS rol_db,
+        u.fecha_nacimiento
       FROM app.usuarios u
       JOIN app.roles r ON r.id = u.rol_id
       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
@@ -53,17 +79,19 @@ router.get("/", async (req, res) => {
     `;
     const { rows } = await pool.query(sql, params);
 
-    const ROL_UI = { estudiante: "Alumno", profesor: "Docente", psicologo: "Psicólogo", admin: "Admin" };
     const data = rows.map((x) => {
       const parts = (x.nombre_completo || "").trim().split(/\s+/);
       const nombre = parts.shift() || "";
       const apellido = parts.join(" ");
       return {
-        id: x.id, nombre, apellido,
+        id: x.id,
+        nombre,
+        apellido,
         correo: x.email || undefined,
         username: x.username || undefined,
         rol: ROL_UI[x.rol_db] || "Alumno",
         estado: x.activo ? "Activo" : "Inactivo",
+        fecha_nacimiento: x.fecha_nacimiento || null, // pg devuelve date como string YYYY-MM-DD
       };
     });
 
@@ -73,7 +101,6 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: "Error de servidor" });
   }
 });
-
 
 // ====== POST: crear usuario ======
 // admin → puede crear cualquier rol
@@ -86,6 +113,7 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
     email = "",
     username = "",
     password = "",  // opcional
+    fecha_nacimiento = "", // YYYY-MM-DD (opcional; obligatorio para estudiante)
   } = req.body || {};
 
   try {
@@ -112,6 +140,14 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
     }
     if (uname && !/^[a-z0-9_]{3,24}$/.test(uname)) {
       return res.status(400).json({ error: "Username inválido (3–24, a-z0-9_)" });
+    }
+
+    // fecha de nacimiento: obligatoria para estudiantes; 5+ años si viene
+    if (rol === "estudiante" && !fecha_nacimiento) {
+      return res.status(400).json({ error: "DOB_REQUIRED_FOR_STUDENT" });
+    }
+    if (fecha_nacimiento && !isAtLeast5YearsOld(fecha_nacimiento)) {
+      return res.status(400).json({ error: "DOB_INVALID_OR_UNDER_5" });
     }
 
     const client = await pool.connect();
@@ -142,7 +178,19 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
       let insertSql;
       let params;
 
-      if (cols.has("must_change_password")) {
+      const hasMCP = cols.has("must_change_password");
+      const hasDOB = cols.has("fecha_nacimiento");
+
+      if (hasMCP && hasDOB) {
+        insertSql = `
+          INSERT INTO app.usuarios
+            (email, username, password_hash, nombre, rol_id, activo, must_change_password, fecha_nacimiento)
+          VALUES
+            (NULLIF($1,'')::citext, NULLIF($2,''), crypt($3, gen_salt('bf')), $4, $5, TRUE, $6, NULLIF($7,'')::date)
+          RETURNING id
+        `;
+        params = [email, uname, passwordForDb, fullName, rolId, !hasPassword, fecha_nacimiento || ""];
+      } else if (hasMCP && !hasDOB) {
         insertSql = `
           INSERT INTO app.usuarios
             (email, username, password_hash, nombre, rol_id, activo, must_change_password)
@@ -151,6 +199,15 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
           RETURNING id
         `;
         params = [email, uname, passwordForDb, fullName, rolId, !hasPassword];
+      } else if (!hasMCP && hasDOB) {
+        insertSql = `
+          INSERT INTO app.usuarios
+            (email, username, password_hash, nombre, rol_id, activo, fecha_nacimiento)
+          VALUES
+            (NULLIF($1,'')::citext, NULLIF($2,''), crypt($3, gen_salt('bf')), $4, $5, TRUE, NULLIF($6,'')::date)
+          RETURNING id
+        `;
+        params = [email, uname, passwordForDb, fullName, rolId, fecha_nacimiento || ""];
       } else {
         insertSql = `
           INSERT INTO app.usuarios
@@ -206,51 +263,52 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
 // ====== PUT: editar usuario ======
 // admin → puede editar cualquiera
 // profesor → solo puede editar ESTUDIANTES y no puede cambiar su rol
-// ====== PUT: editar usuario ======
-// admin → puede editar cualquiera
-// profesor → solo puede editar ESTUDIANTES y no puede cambiar su rol
 router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
   const { id } = req.params;
   const {
-    nombres, apellidos, email, username, rol, rol_id,
+    nombres, apellidos, email, username, rol, rol_id, fecha_nacimiento,
   } = req.body ?? {};
 
   try {
     const actor = (req.auth?.role || "").toLowerCase();
 
-    
+    // Reglas para profesor
     if (actor === "profesor") {
-      
-      const chk = await pool.query(`
-        SELECT r.nombre AS rol
-        FROM app.usuarios u
-        JOIN app.roles r ON r.id = u.rol_id
-        WHERE u.id = $1
-        LIMIT 1
-      `, [id]);
+      const chk = await pool.query(
+        `SELECT r.nombre AS rol
+           FROM app.usuarios u
+           JOIN app.roles r ON r.id = u.rol_id
+          WHERE u.id = $1
+          LIMIT 1`,
+        [id]
+      );
       const targetRole = chk.rows[0]?.rol;
       if (targetRole !== "estudiante") {
         return res.status(403).json({ error: "FORBIDDEN" });
       }
-     
+      // no puede cambiar rol
       if (Object.prototype.hasOwnProperty.call(req.body, "rol")) delete req.body.rol;
       if (Object.prototype.hasOwnProperty.call(req.body, "rol_id")) delete req.body.rol_id;
+    }
+
+    // Validar DOB si viene
+    if (Object.prototype.hasOwnProperty.call(req.body, "fecha_nacimiento")) {
+      if (fecha_nacimiento && !isAtLeast5YearsOld(fecha_nacimiento)) {
+        return res.status(400).json({ error: "DOB_INVALID_OR_UNDER_5" });
+      }
     }
 
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-     
+      // Resolver rol_id si corresponde (solo admin)
       let roleId = null;
       if (rol_id != null) {
         roleId = Number(rol_id);
       } else if (rol != null && String(rol).trim() !== "") {
         const v = String(rol).toLowerCase().trim();
-        const r = await client.query(
-          `SELECT id FROM app.roles WHERE lower(nombre) = $1 LIMIT 1`,
-          [v]
-        );
+        const r = await client.query(`SELECT id FROM app.roles WHERE lower(nombre) = $1 LIMIT 1`, [v]);
         roleId = r.rows[0]?.id ?? null;
         if (roleId === null) {
           await client.query("ROLLBACK");
@@ -258,12 +316,12 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         }
       }
 
-  
+      // Construir SET dinámico
       const sets = [];
       const vals = [id];
       let i = 1; // $1 = id
 
-      
+      // Nombre
       const tocoNombre =
         Object.prototype.hasOwnProperty.call(req.body, "nombres") ||
         Object.prototype.hasOwnProperty.call(req.body, "apellidos");
@@ -284,27 +342,35 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
           return res.status(400).json({ error: "Email no puede ser nulo" });
         }
         const em = String(email ?? "").trim();
-        const ok = !!em && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
+        const ok = !em || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em); // permite vacío → NULL
         if (!ok) {
           await client.query("ROLLBACK");
           return res.status(400).json({ error: "Email inválido" });
         }
-        i++; sets.push(`email = $${i}::citext`); vals.push(em);
+        i++; sets.push(`email = NULLIF($${i}, '')::citext`); vals.push(em);
       }
 
       // Username (puede ser NULL)
       if (Object.prototype.hasOwnProperty.call(req.body, "username")) {
-        if (username === null) {
+        if (username === null || String(username).trim() === "") {
           sets.push(`username = NULL`);
         } else {
           const u = normUser(username);
-          if (u) {
-            i++; sets.push(`username = $${i}`); vals.push(u);
+          if (!/^[a-z0-9_]{3,24}$/.test(u)) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ error: "Username inválido (3–24, a-z0-9_)" });
           }
+          i++; sets.push(`username = $${i}`); vals.push(u);
         }
       }
 
-      // rol_id si se resolvió (esto solo llegará por admin)
+      // Fecha de nacimiento (NULL si viene vacío)
+      if (Object.prototype.hasOwnProperty.call(req.body, "fecha_nacimiento")) {
+        const dob = (fecha_nacimiento || "").trim();
+        i++; sets.push(`fecha_nacimiento = NULLIF($${i}, '')::date`); vals.push(dob);
+      }
+
+      // rol_id si se resolvió (solo admin)
       if (roleId != null) {
         i++; sets.push(`rol_id = $${i}`); vals.push(roleId);
       }
@@ -318,7 +384,7 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         UPDATE app.usuarios
            SET ${sets.join(", ")}, updated_at = now()
          WHERE id = $1
-        RETURNING id, nombre, email, username, rol_id, activo
+        RETURNING id, nombre, email, username, rol_id, activo, fecha_nacimiento
       `;
       const { rows } = await client.query(q, vals);
       await client.query("COMMIT");
@@ -354,13 +420,14 @@ router.patch("/:id/status", requireRole("admin", "profesor"), async (req, res) =
   try {
     const actor = (req.auth?.role || "").toLowerCase();
     if (actor === "profesor") {
-      const chk = await pool.query(`
-        SELECT r.nombre AS rol
-        FROM app.usuarios u
-        JOIN app.roles r ON r.id = u.rol_id
-        WHERE u.id = $1
-        LIMIT 1
-      `, [id]);
+      const chk = await pool.query(
+        `SELECT r.nombre AS rol
+           FROM app.usuarios u
+           JOIN app.roles r ON r.id = u.rol_id
+          WHERE u.id = $1
+          LIMIT 1`,
+        [id]
+      );
       if (chk.rows[0]?.rol !== "estudiante") {
         return res.status(403).json({ error: "FORBIDDEN" });
       }

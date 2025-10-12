@@ -21,11 +21,12 @@ function getRoleFromToken(): Role | null {
 }
 
 const ALLOWED_ROUTES: Record<Role, string[]> = {
-  admin: [ROUTES.usuarios, ROUTES.alumnos, ROUTES.videojuego, ROUTES.resultados],
-  profesor: [ROUTES.alumnos, ROUTES.resultados],
-  psicologo: [ROUTES.videojuego, ROUTES.resultados],
-  estudiante: [ROUTES.videojuego],
+  admin: [ROUTES.usuarios, ROUTES.alumnos, ROUTES.videojuego, ROUTES.resultados, ROUTES.perfil],
+  profesor: [ROUTES.alumnos, ROUTES.resultados, ROUTES.perfil],
+  psicologo: [ROUTES.videojuego, ROUTES.resultados, ROUTES.perfil],
+  estudiante: [ROUTES.videojuego, ROUTES.perfil],
 };
+
 
 function DarkModeToggle() {
   const [isDark, setIsDark] = useState(() => {
@@ -72,6 +73,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { to: ROUTES.usuarios,   label: "Usuarios",   icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" strokeWidth="2"/><circle cx="9" cy="7" r="4" strokeWidth="2"/><path d="M23 21v-2a4 4 0 0 0-3-3.87" strokeWidth="2"/><path d="M16 3.13a4 4 0 0 1 0 7.75" strokeWidth="2"/></svg>)},
     { to: ROUTES.videojuego, label: "Videojuego", icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="7" width="20" height="10" rx="3" strokeWidth="2"/><path d="M7 12h4M9 10v4" strokeWidth="2"/><circle cx="17" cy="11" r="1"/><circle cx="19" cy="13" r="1"/></svg>)},
     { to: ROUTES.alumnos,    label: "Alumnos",    icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18" strokeWidth="2"/><rect x="7" y="12" width="3" height="6" strokeWidth="2"/><rect x="12" y="8" width="3" height="10" strokeWidth="2"/><rect x="17" y="5" width="3" height="13" strokeWidth="2"/></svg>)},
+    { to: ROUTES.perfil, label: "Perfil", icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+  <circle cx="12" cy="8" r="4" strokeWidth="2"/>
+  <path d="M20 21c0-4.418-3.582-8-8-8s-8 3.582-8 8" strokeWidth="2"/>
+</svg>) },
     { to: ROUTES.resultados, label: "Resultados", icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18" strokeWidth="2"/><rect x="7" y="12" width="3" height="6" strokeWidth="2"/><rect x="12" y="8" width="3" height="10" strokeWidth="2"/><rect x="17" y="5" width="3" height="13" strokeWidth="2"/></svg>)},
   ]), []);
 

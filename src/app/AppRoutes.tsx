@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "./layout/AppShell";
 import { ROUTES } from "../lib/routes";
 import TwoFactorPage from "../features/auth/TwoFactorPage";
+import ProfilePage from "../features/auth/ProfilePage";
 
 const UsersPage    = lazy(() => import("../features/users/pages/UsersPage"));
 const LoginPage    = lazy(() => import("../features/auth/LoginPage"));
@@ -115,6 +116,14 @@ export default function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+  path={ROUTES.perfil}
+  element={
+    <ProtectedRoute allow={["admin","profesor","psicologo","estudiante"]}>
+      <ProfilePage />
+    </ProtectedRoute>
+  }
+/>
 
           {/* Redirecciones según rol */}
           <Route path={ROUTES.app} element={<AppHomeRedirect />} />
