@@ -218,9 +218,9 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
   try {
     const actor = (req.auth?.role || "").toLowerCase();
 
-    // Si es profesor, validar target y **ignorar** cualquier intento de cambio de rol
+    
     if (actor === "profesor") {
-      // Verificar que el usuario destino sea estudiante
+      
       const chk = await pool.query(`
         SELECT r.nombre AS rol
         FROM app.usuarios u
@@ -232,7 +232,7 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
       if (targetRole !== "estudiante") {
         return res.status(403).json({ error: "FORBIDDEN" });
       }
-      // Sanitizar: si viene 'rol' o 'rol_id' en el body, ignorarlos
+     
       if (Object.prototype.hasOwnProperty.call(req.body, "rol")) delete req.body.rol;
       if (Object.prototype.hasOwnProperty.call(req.body, "rol_id")) delete req.body.rol_id;
     }
@@ -241,7 +241,7 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
     try {
       await client.query("BEGIN");
 
-      // --- Resolver rol_id si lo mandan (solo aplicará para admin; profesor ya se sanitizó arriba) ---
+     
       let roleId = null;
       if (rol_id != null) {
         roleId = Number(rol_id);
@@ -258,12 +258,12 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         }
       }
 
-      // --- Construir SET dinámico ---
+  
       const sets = [];
       const vals = [id];
       let i = 1; // $1 = id
 
-      // Nombre
+      
       const tocoNombre =
         Object.prototype.hasOwnProperty.call(req.body, "nombres") ||
         Object.prototype.hasOwnProperty.call(req.body, "apellidos");

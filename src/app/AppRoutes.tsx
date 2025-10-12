@@ -8,6 +8,11 @@ import TwoFactorPage from "../features/auth/TwoFactorPage";
 const UsersPage    = lazy(() => import("../features/users/pages/UsersPage"));
 const LoginPage    = lazy(() => import("../features/auth/LoginPage"));
 const StudentsPage = lazy(() => import("../features/students/pages/StudentsPage"));
+const ForgotPasswordPage = lazy(() => import("../features/auth/ForgotPasswordPage"));
+const ResetPasswordPage  = lazy(() => import("../features/auth/ResetPasswordPage"));
+
+// …
+
 
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
@@ -91,7 +96,8 @@ export default function AppRoutes() {
               </ProtectedRoute>
             }
           />
-
+<Route path={ROUTES.forgot} element={<ForgotPasswordPage />} />
+<Route path={ROUTES.reset}  element={<ResetPasswordPage />} />
           <Route
             path={ROUTES.videojuego}
             element={

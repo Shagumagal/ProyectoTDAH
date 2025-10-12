@@ -1,6 +1,6 @@
 // src/features/auth/LoginPage.tsx
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom"; // ⬅️ agregado Link
 
 import { ROUTES } from "../../lib/routes";
 import { loginPassword, loginWithCode } from "./services/auth.services";
@@ -163,9 +163,10 @@ export default function LoginPage() {
                     Tengo un código
                   </button>
                   <span>·</span>
-                  <a className="underline underline-offset-4" href="#">
+                  {/* ⬇️ Enlace real a recuperación */}
+                  <Link to={ROUTES.forgot} className="underline underline-offset-4">
                     Olvidé mi contraseña
-                  </a>
+                  </Link>
                 </div>
               </form>
             ) : (

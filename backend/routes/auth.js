@@ -129,7 +129,7 @@ router.post("/verify-2fa", async (req, res) => {
     if (!result.ok) {
       return res.status(400).json({ error: result.reason || "INVALID_OR_EXPIRED" });
     }
-
+//
     // Traemos role, must_change y activo para validar inactivo
     const { rows } = await pool.query(
       `SELECT r.nombre AS role, u.must_change_password, u.activo
