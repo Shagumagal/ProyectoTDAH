@@ -12,6 +12,7 @@ export type UserFormOutput = {
   username?: string;     // solo si quieres manejar alumno sin email
   password?: string;     // opcional (solo creación)
   fecha_nacimiento?: string; // YYYY-MM-DD
+  genero?: "masculino" | "femenino" | "no_binario" | "prefiero_no_decir";
 };
 
 export type UserFormMode = "create" | "edit";
@@ -32,6 +33,20 @@ const emailOk = (v: string) =>
 
 const usernameOk = (v: string) =>
   !v || /^[a-z0-9_]{3,24}$/.test(v);
+
+const GENERO_OPTS = [
+  { value: "", label: "— Selecciona (opcional) —" },
+  { value: "masculino", label: "Masculino" },
+  { value: "femenino", label: "Femenino" },
+  { value: "no_binario", label: "No binario" },
+  { value: "prefiero_no_decir", label: "Prefiero no decir" },
+] as const;
+
+type GeneroValue = (typeof GENERO_OPTS)[number]["value"];
+
+function isGenero(v: string): v is NonNullable<UserFormOutput["genero"]> {
+  return ["masculino","femenino","no_binario","prefiero_no_decir"].includes(v);
+}
 
 // Helpers fecha (edad mínima 5 años)
 function fmtYYYYMMDD(d: Date) {
@@ -67,6 +82,7 @@ export default function UserForm({
   const [password, setPassword] = useState(""); // solo creación
   const [showPass, setShowPass] = useState(false);
   const [fechaNac, setFechaNac] = useState(""); // YYYY-MM-DD
+  const [genero, setGenero] = useState<GeneroValue>("");
 
   // ui
   const [saving, setSaving] = useState(false);
@@ -93,7 +109,10 @@ export default function UserForm({
       setCorreo(initialUser.correo ?? "");
       setUsername((initialUser as any).username ?? "");
       setPassword("");
-      setFechaNac(initialUser.fecha_nacimiento || "");
+      setFechaNac((initialUser as any).fecha_nacimiento || "");
+      setGenero(
+        isGenero((initialUser as any).genero || "") ? (initialUser as any).genero : ""
+      );
     } else {
       setNombre("");
       setApellido("");
@@ -102,6 +121,7 @@ export default function UserForm({
       setUsername("");
       setPassword("");
       setFechaNac("");
+      setGenero("");
     }
     setError(null);
   }, [mode, initialUser]);
@@ -120,6 +140,9 @@ export default function UserForm({
     // Fecha de nacimiento
     if (isAlumno && !fechaNac) return "Fecha de nacimiento es obligatoria para Alumno.";
     if (fechaNac && !ageOk5(fechaNac)) return "La fecha debe indicar al menos 5 años de edad.";
+
+    // Género (opcional, pero si viene debe ser válido)
+    if (genero && !isGenero(genero)) return "Género inválido.";
 
     if (mode === "create" && password && password.length < 6) {
       return "La contraseña debe tener al menos 6 caracteres.";
@@ -142,6 +165,7 @@ export default function UserForm({
       username: normalizeUsername(username) || undefined,
       ...(mode === "create" && password ? { password } : {}),
       fecha_nacimiento: fechaNac || undefined,
+      genero: (genero as UserFormOutput["genero"]) || undefined,
     };
 
     try {
@@ -231,6 +255,21 @@ export default function UserForm({
           <p className="mt-1 text-xs text-slate-400">
             Debe tener al menos 5 años. {rol !== "Alumno" ? "(opcional)" : ""}
           </p>
+        </div>
+
+        {/* Género (opcional) */}
+        <div>
+          <label htmlFor="genero" className="block text-sm font-semibold text-slate-300">Género</label>
+          <select
+            id="genero"
+            value={genero}
+            onChange={(e) => setGenero(e.target.value as GeneroValue)}
+            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            {GENERO_OPTS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
 
         {/* Username */}

@@ -78,6 +78,7 @@ export default function UsersPage() {
           username: data.username,
           password: data.password ?? undefined,
           fecha_nacimiento: data.fecha_nacimiento ?? undefined,
+          genero: data.genero ?? undefined, // ⬅️ NUEVO
         });
         await refresh();
         setDialog(null);
@@ -91,6 +92,7 @@ export default function UsersPage() {
         email: data.correo ?? null,
         username: data.username ?? null,
         fecha_nacimiento: data.fecha_nacimiento ?? null,
+        genero: data.genero ?? null,
       });
 
       await refresh();

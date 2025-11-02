@@ -11,4 +11,5 @@ export interface Usuario {
   estado: Estado;
   username?: string;        // algunos alumnos sin correo
    fecha_nacimiento?: string | null;
+     genero?: string | null;  
 }

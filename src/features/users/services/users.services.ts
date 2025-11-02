@@ -5,6 +5,7 @@ import { authHeaders } from "../../../lib/http";
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 export type RoleDb = "estudiante" | "profesor" | "psicologo" | "admin";
+export type GeneroDb = "masculino" | "femenino" | "no_binario" | "prefiero_no_decir";
 
 export interface CreateUserPayload {
   nombres: string;
@@ -14,6 +15,7 @@ export interface CreateUserPayload {
   username?: string;
   password?: string;
   fecha_nacimiento?: string; // YYYY-MM-DD
+  genero?: GeneroDb;         // ⬅️ NUEVO
 }
 
 export interface CreateUserResp {
@@ -32,7 +34,8 @@ export async function createUser(payload: CreateUserPayload): Promise<CreateUser
       email: payload.email ?? "",
       username: payload.username ?? "",
       password: payload.password ?? "",
-      fecha_nacimiento: payload.fecha_nacimiento ?? "", // 👈 AHORA SE ENVÍA
+      fecha_nacimiento: payload.fecha_nacimiento ?? "",
+      genero: payload.genero ?? "", // ⬅️ NUEVO
     }),
   });
   const text = await res.text();
@@ -57,23 +60,20 @@ export async function updateUser(
     rol?: RoleDb;
     email?: string | null;
     username?: string | null;
-    fecha_nacimiento?: string | null; // 👈 AHORA SOPORTADO
+    fecha_nacimiento?: string | null;
+    genero?: GeneroDb | null;           // ⬅️ NUEVO
     must_change_password?: boolean;
   }
 ) {
-  // Construimos body explícito para controlar NULL/"" y evitar mandar undefined
   const body: any = {};
   if (payload.nombres !== undefined) body.nombres = payload.nombres;
   if (payload.apellidos !== undefined) body.apellidos = payload.apellidos;
   if (payload.rol !== undefined) body.rol = payload.rol;
   if (payload.email !== undefined) body.email = payload.email ?? "";
   if (payload.username !== undefined) body.username = payload.username ?? "";
-  if (payload.fecha_nacimiento !== undefined) {
-    body.fecha_nacimiento = payload.fecha_nacimiento ?? ""; // "" -> NULL en el back
-  }
-  if (payload.must_change_password !== undefined) {
-    body.must_change_password = payload.must_change_password;
-  }
+  if (payload.fecha_nacimiento !== undefined) body.fecha_nacimiento = payload.fecha_nacimiento ?? "";
+  if (payload.genero !== undefined) body.genero = payload.genero ?? ""; // "" → NULL en back
+  if (payload.must_change_password !== undefined) body.must_change_password = payload.must_change_password;
 
   const res = await fetch(`${API_URL}/users/${id}`, {
     method: "PUT",
