@@ -1,7 +1,8 @@
+// src/features/students/pages/StudentsPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import type { Usuario } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
-import UserForm, { type UserFormOutput } from "../../users/components/UserForm";
+import StudentForm from "../components/StudentForm";
 import {
   getUsers,
   createUser,
@@ -32,15 +33,12 @@ export default function StudentsPage() {
         );
         if (!cancel) setAlumnos(onlyStudents);
       } catch (e: any) {
-        console.error(e);
         if (!cancel) setError(e?.message || "Error cargando alumnos");
       } finally {
         if (!cancel) setLoading(false);
       }
     })();
-    return () => {
-      cancel = true;
-    };
+    return () => { cancel = true; };
   }, []);
 
   async function refresh() {
@@ -52,45 +50,44 @@ export default function StudentsPage() {
     const term = q.trim().toLowerCase();
     if (!term) return alumnos;
     return alumnos.filter((u) =>
-      [
-        u.nombre || "",
-        u.apellido || "",
-        u.correo || "",
-        u.username || "",
-        u.estado || "",
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(term)
+      [u.nombre||"", u.apellido||"", u.correo||"", u.username||"", u.estado||""]
+        .join(" ").toLowerCase().includes(term)
     );
   }, [alumnos, q]);
 
-  async function handleSubmit(data: UserFormOutput) {
+  async function handleSubmit(data: {
+    id?: string;
+    nombres: string;
+    apellidos: string;
+    email?: string | null;
+    username?: string | null;
+    password?: string;
+    fecha_nacimiento: string;
+    genero?: "masculino"|"femenino"|"no_binario"|"prefiero_no_decir"|null;
+  }) {
     try {
-      // CREAR alumno (forzamos rol estudiante)
       if (!data.id) {
         await createUser({
-          nombres: data.nombre,
-          apellidos: data.apellido,
-          rol: ROLE_ESTUDIANTE, // 👈 siempre estudiante
-          email: data.correo,
-          username: data.username,
+          nombres: data.nombres,
+          apellidos: data.apellidos,
+          rol: ROLE_ESTUDIANTE,
+          email: data.email ?? undefined,
+          username: data.username ?? undefined,
           password: data.password ?? undefined,
+          fecha_nacimiento: data.fecha_nacimiento,
+          genero: data.genero ?? undefined,
         });
-        await refresh();
-        setDialog(null);
-        return;
+      } else {
+        await updateUser(data.id, {
+          nombres: data.nombres,
+          apellidos: data.apellidos,
+          rol: ROLE_ESTUDIANTE,
+          email: data.email ?? null,
+          username: data.username ?? null,
+          fecha_nacimiento: data.fecha_nacimiento ?? null,
+          genero: (data.genero ?? null) as any,
+        });
       }
-
-      // EDITAR alumno (mantenemos rol estudiante)
-      await updateUser(data.id, {
-        nombres: data.nombre,
-        apellidos: data.apellido,
-        rol: ROLE_ESTUDIANTE, // 👈 aseguramos que siga siendo alumno
-        email: data.correo ?? null,
-        username: data.username ?? null,
-      });
-
       await refresh();
       setDialog(null);
     } catch (e: any) {
@@ -102,8 +99,7 @@ export default function StudentsPage() {
     try {
       const u = alumnos.find((x) => x.id === id);
       if (!u) return;
-      const isActiveNow = u.estado === "Activo";
-      await setUserActive(id, !isActiveNow);
+      await setUserActive(id, u.estado !== "Activo");
       await refresh();
     } catch (e: any) {
       alert(e?.message || "No se pudo cambiar el estado");
@@ -112,7 +108,6 @@ export default function StudentsPage() {
 
   return (
     <section className="grid gap-6">
-      {/* ===== Header card (idéntico a UsersPage) ===== */}
       <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -165,7 +160,7 @@ export default function StudentsPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="text-left text-slate-600 dark:text-slate-300">
-                    <th className="py-2 pr-4"> Nombre completo</th>
+                    <th className="py-2 pr-4">Nombre completo</th>
                     <th className="py-2 pr-4">Correo</th>
                     <th className="py-2 pr-4">Usuario</th>
                     <th className="py-2 pr-4">Estado</th>
@@ -224,11 +219,16 @@ export default function StudentsPage() {
         title={dialog?.mode === "edit" ? "Editar alumno" : "Nuevo alumno"}
       >
         {dialog && (
-          <UserForm
+          <StudentForm
             mode={dialog.mode}
-            initialUser={dialog.user}
+            initial={dialog.user as any}
             onCancel={() => setDialog(null)}
-            onSubmit={handleSubmit}
+            onSubmit={async (form) => {
+              await handleSubmit({
+                ...form,
+                id: dialog.user?.id,
+              });
+            }}
           />
         )}
       </Modal>

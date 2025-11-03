@@ -7,11 +7,9 @@ const router = express.Router();
 
 /* -------------------- helpers fecha de nacimiento -------------------- */
 function parseDateOnly(s = "") {
-  // YYYY-MM-DD
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   const [y, m, d] = s.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
-  // evita 2025-02-31, etc.
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
   return dt;
 }
@@ -20,11 +18,9 @@ function isAtLeast5YearsOld(s) {
   if (!dt) return false;
   const today = new Date();
   const cutoff = new Date(Date.UTC(today.getFullYear() - 5, today.getMonth(), today.getDate()));
-  // rango razonable
   return dt <= cutoff && dt >= new Date(Date.UTC(1900, 0, 1));
 }
 
-/* -------------------- helpers género -------------------- */
 const GENEROS = new Set(["masculino","femenino","no_binario","prefiero_no_decir"]);
 function normGenero(s = "") {
   const v = String(s).trim().toLowerCase();
@@ -38,7 +34,7 @@ const normUser = (s = "") => s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
 // Todas las rutas de /users requieren estar autenticado
 router.use(requireAuth);
 
-// ====== GET: listar usuarios (para la tabla) ======
+// ====== GET: listar usuarios ======
 const ROL_UI = {
   estudiante: "Alumno",
   profesor: "Docente",
@@ -54,10 +50,8 @@ router.get("/", async (req, res) => {
     if (myRole === "admin") {
       // sin restricciones
     } else if (myRole === "profesor") {
-      if (!roleQ) roleQ = "estudiante"; // por defecto alumnos
-      if (roleQ !== "estudiante") {
-        return res.status(403).json({ error: "FORBIDDEN" });
-      }
+      if (!roleQ) roleQ = "estudiante";
+      if (roleQ !== "estudiante") return res.status(403).json({ error: "FORBIDDEN" });
     } else {
       return res.status(403).json({ error: "FORBIDDEN" });
     }
@@ -99,7 +93,7 @@ router.get("/", async (req, res) => {
         username: x.username || undefined,
         rol: ROL_UI[x.rol_db] || "Alumno",
         estado: x.activo ? "Activo" : "Inactivo",
-        fecha_nacimiento: x.fecha_nacimiento || null, // YYYY-MM-DD
+        fecha_nacimiento: x.fecha_nacimiento || null,
         genero: x.genero || null,
       };
     });
@@ -112,24 +106,21 @@ router.get("/", async (req, res) => {
 });
 
 // ====== POST: crear usuario ======
-// admin → puede crear cualquier rol
-// profesor → SOLO puede crear estudiantes
 router.post("/", requireRole("admin", "profesor"), async (req, res) => {
   const {
     nombres = "",
     apellidos = "",
-    rol,            // 'estudiante' | 'profesor' | 'psicologo' | 'admin'
+    rol,
     email = "",
     username = "",
-    password = "",  // opcional
-    fecha_nacimiento = "", // YYYY-MM-DD (opcional; obligatorio para estudiante)
+    password = "",
+    fecha_nacimiento = "",
     genero = "",
   } = req.body || {};
 
   try {
     if (!rol) return res.status(400).json({ error: "Rol es obligatorio" });
 
-    // Regla para profesor
     const actor = (req.auth?.role || "").toLowerCase();
     if (actor === "profesor" && rol !== "estudiante") {
       return res.status(403).json({ error: "FORBIDDEN" });
@@ -152,7 +143,6 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
       return res.status(400).json({ error: "Username inválido (3–24, a-z0-9_)" });
     }
 
-    // fecha de nacimiento: obligatoria para estudiantes; 5+ años si viene
     if (rol === "estudiante" && !fecha_nacimiento) {
       return res.status(400).json({ error: "DOB_REQUIRED_FOR_STUDENT" });
     }
@@ -160,17 +150,10 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
       return res.status(400).json({ error: "DOB_INVALID_OR_UNDER_5" });
     }
 
-    // género (opcional pero validado si viene)
-    const generoDb = genero ? normGenero(genero) : null;
-    if (genero && !generoDb) {
-      return res.status(400).json({ error: "GENERO_INVALIDO" });
-    }
-
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      // rol_id
       const r = await client.query(
         "SELECT id FROM app.roles WHERE nombre = $1 LIMIT 1",
         [rol]
@@ -181,7 +164,6 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
       }
       const rolId = r.rows[0].id;
 
-      // Descubrir columnas existentes
       const colsRes = await client.query(`
         SELECT column_name
         FROM information_schema.columns
@@ -191,35 +173,53 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
 
       const passwordForDb = hasPassword ? password : `${Date.now()}_${Math.random()}`;
 
-      // Inserción dinámica según columnas reales
-      const colsIns = ["email","username","password_hash","nombre","rol_id","activo"];
-      const valsIns = ["NULLIF($1,'')::citext","NULLIF($2,'')","crypt($3, gen_salt('bf'))","$4","$5","TRUE"];
-      const paramsIns = [email, uname, passwordForDb, fullName, rolId];
-      let p = paramsIns.length;
+      let insertSql;
+      let params;
 
-      if (cols.has("must_change_password")) {
-        colsIns.push("must_change_password");
-        valsIns.push(`$${++p}`);
-        paramsIns.push(!hasPassword);
-      }
-      if (cols.has("fecha_nacimiento")) {
-        colsIns.push("fecha_nacimiento");
-        valsIns.push(`NULLIF($${++p}, '')::date`);
-        paramsIns.push(fecha_nacimiento || "");
-      }
-      if (cols.has("genero")) {
-        colsIns.push("genero");
-        valsIns.push(`NULLIF($${++p}, '')`);
-        paramsIns.push(generoDb || "");
+      const hasMCP = cols.has("must_change_password");
+      const hasDOB = cols.has("fecha_nacimiento");
+
+      if (hasMCP && hasDOB) {
+        insertSql = `
+          INSERT INTO app.usuarios
+            (email, username, password_hash, nombre, rol_id, activo, must_change_password, fecha_nacimiento)
+          VALUES
+            (NULLIF($1,'')::citext, NULLIF($2,''), crypt($3, gen_salt('bf')), $4, $5, TRUE, $6, NULLIF($7,'')::date)
+          RETURNING id
+        `;
+        params = [email, uname, passwordForDb, fullName, rolId, !hasPassword, fecha_nacimiento || ""];
+      } else if (hasMCP && !hasDOB) {
+        insertSql = `
+          INSERT INTO app.usuarios
+            (email, username, password_hash, nombre, rol_id, activo, must_change_password)
+          VALUES
+            (NULLIF($1,'')::citext, NULLIF($2,''), crypt($3, gen_salt('bf')), $4, $5, TRUE, $6)
+          RETURNING id
+        `;
+        params = [email, uname, passwordForDb, fullName, rolId, !hasPassword];
+      } else if (!hasMCP && hasDOB) {
+        insertSql = `
+          INSERT INTO app.usuarios
+            (email, username, password_hash, nombre, rol_id, activo, fecha_nacimiento)
+          VALUES
+            (NULLIF($1,'')::citext, NULLIF($2,''), crypt($3, gen_salt('bf')), $4, $5, TRUE, NULLIF($6,'')::date)
+          RETURNING id
+        `;
+        params = [email, uname, passwordForDb, fullName, rolId, fecha_nacimiento || ""];
+      } else {
+        insertSql = `
+          INSERT INTO app.usuarios
+            (email, username, password_hash, nombre, rol_id, activo)
+          VALUES
+            (NULLIF($1,'')::citext, NULLIF($2,''), crypt($3, gen_salt('bf')), $4, $5, TRUE)
+          RETURNING id
+        `;
+        params = [email, uname, passwordForDb, fullName, rolId];
       }
 
-      const insertSql = `
-        INSERT INTO app.usuarios (${colsIns.join(",")})
-        VALUES (${valsIns.join(",")})
-        RETURNING id
-      `;
-      const ins = await client.query(insertSql, paramsIns);
+      const ins = await client.query(insertSql, params);
       const userId = ins.rows[0].id;
+      let loginCode = null;
 
       // Alumno sin password → emitir código si existen columnas
       if (
@@ -228,7 +228,7 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
         cols.has("login_code_hash") &&
         cols.has("login_code_expires_at")
       ) {
-        const loginCode = String(Math.floor(100000 + Math.random() * 900000));
+        loginCode = String(Math.floor(100000 + Math.random() * 900000));
         await client.query(
           `
           UPDATE app.usuarios
@@ -238,17 +238,19 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
           `,
           [loginCode, userId]
         );
-        await client.query("COMMIT");
-        return res.status(201).json({ id: userId, login_code: loginCode });
+      }
+
+      // 👇 CAMBIO MÍNIMO: actualizar genero si la columna existe y vino en el body
+      if (Object.prototype.hasOwnProperty.call(req.body, "genero") && cols.has("genero")) {
+        const g = normGenero(genero);
+        await client.query(`UPDATE app.usuarios SET genero = $1 WHERE id = $2`, [g, userId]);
       }
 
       await client.query("COMMIT");
-      return res.status(201).json({ id: userId, login_code: null });
+      return res.status(201).json({ id: userId, login_code: loginCode });
     } catch (e) {
       await client.query("ROLLBACK");
-      if (e.code === "23505") {
-        return res.status(409).json({ error: "Email o username ya existe" });
-      }
+      if (e.code === "23505") return res.status(409).json({ error: "Email o username ya existe" });
       console.error("create-user error:", e);
       return res.status(500).json({ error: e.message || "Error de servidor" });
     } finally {
@@ -261,8 +263,6 @@ router.post("/", requireRole("admin", "profesor"), async (req, res) => {
 });
 
 // ====== PUT: editar usuario ======
-// admin → puede editar cualquiera
-// profesor → solo puede editar ESTUDIANTES y no puede cambiar su rol
 router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
   const { id } = req.params;
   const {
@@ -272,7 +272,6 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
   try {
     const actor = (req.auth?.role || "").toLowerCase();
 
-    // Reglas para profesor
     if (actor === "profesor") {
       const chk = await pool.query(
         `SELECT r.nombre AS rol
@@ -283,32 +282,22 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         [id]
       );
       const targetRole = chk.rows[0]?.rol;
-      if (targetRole !== "estudiante") {
-        return res.status(403).json({ error: "FORBIDDEN" });
-      }
-      // no puede cambiar rol
+      if (targetRole !== "estudiante") return res.status(403).json({ error: "FORBIDDEN" });
       if (Object.prototype.hasOwnProperty.call(req.body, "rol")) delete req.body.rol;
       if (Object.prototype.hasOwnProperty.call(req.body, "rol_id")) delete req.body.rol_id;
     }
 
-    // Validar DOB si viene
     if (Object.prototype.hasOwnProperty.call(req.body, "fecha_nacimiento")) {
       if (fecha_nacimiento && !isAtLeast5YearsOld(fecha_nacimiento)) {
         return res.status(400).json({ error: "DOB_INVALID_OR_UNDER_5" });
       }
     }
 
-    // Validar género si viene
-    if (Object.prototype.hasOwnProperty.call(req.body, "genero")) {
-      const g = genero ? normGenero(genero) : null;
-      if (genero && !g) return res.status(400).json({ error: "GENERO_INVALIDO" });
-    }
-
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      // Resolver rol_id si corresponde (solo admin)
+      // Resolver rol_id si corresponde
       let roleId = null;
       if (rol_id != null) {
         roleId = Number(rol_id);
@@ -322,12 +311,10 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         }
       }
 
-      // Construir SET dinámico
       const sets = [];
       const vals = [id];
-      let i = 1; // $1 = id
+      let i = 1;
 
-      // Nombre
       const tocoNombre =
         Object.prototype.hasOwnProperty.call(req.body, "nombres") ||
         Object.prototype.hasOwnProperty.call(req.body, "apellidos");
@@ -341,14 +328,13 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         i++; sets.push(`nombre = $${i}`); vals.push(fullName);
       }
 
-      // Email (NO null)
       if (Object.prototype.hasOwnProperty.call(req.body, "email")) {
         if (email === null) {
           await client.query("ROLLBACK");
           return res.status(400).json({ error: "Email no puede ser nulo" });
         }
         const em = String(email ?? "").trim();
-        const ok = !em || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em); // permite vacío → NULL
+        const ok = !em || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
         if (!ok) {
           await client.query("ROLLBACK");
           return res.status(400).json({ error: "Email inválido" });
@@ -356,7 +342,6 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         i++; sets.push(`email = NULLIF($${i}, '')::citext`); vals.push(em);
       }
 
-      // Username (puede ser NULL)
       if (Object.prototype.hasOwnProperty.call(req.body, "username")) {
         if (username === null || String(username).trim() === "") {
           sets.push(`username = NULL`);
@@ -370,19 +355,17 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         }
       }
 
-      // Fecha de nacimiento (NULL si viene vacío)
       if (Object.prototype.hasOwnProperty.call(req.body, "fecha_nacimiento")) {
         const dob = (fecha_nacimiento || "").trim();
         i++; sets.push(`fecha_nacimiento = NULLIF($${i}, '')::date`); vals.push(dob);
       }
 
-      // Género (NULL si vacío)
+      // 👇 NUEVO: actualizar genero si vino en el body
       if (Object.prototype.hasOwnProperty.call(req.body, "genero")) {
-        const g = genero ? normGenero(genero) : "";
-        i++; sets.push(`genero = NULLIF($${i}, '')`); vals.push(g || "");
+        const g = normGenero(genero || "");
+        i++; sets.push(`genero = $${i}`); vals.push(g);
       }
 
-      // rol_id si se resolvió (solo admin)
       if (roleId != null) {
         i++; sets.push(`rol_id = $${i}`); vals.push(roleId);
       }
@@ -405,9 +388,7 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
       res.json(rows[0]);
     } catch (e) {
       await client.query("ROLLBACK");
-      if (e.code === "23505") {
-        return res.status(409).json({ error: "Email o username ya existe" });
-      }
+      if (e.code === "23505") return res.status(409).json({ error: "Email o username ya existe" });
       console.error("PUT /users error:", e);
       return res.status(500).json({ error: e.message || "Error actualizando" });
     } finally {
@@ -420,14 +401,10 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
 });
 
 // ====== PATCH estado ======
-// admin → puede activar/inactivar cualquiera
-// profesor → solo puede activar/inactivar ESTUDIANTES
 router.patch("/:id/status", requireRole("admin", "profesor"), async (req, res) => {
   const { id } = req.params;
   const { is_active } = req.body || {};
-  if (typeof is_active !== "boolean") {
-    return res.status(400).json({ error: "is_active debe ser boolean" });
-  }
+  if (typeof is_active !== "boolean") return res.status(400).json({ error: "is_active debe ser boolean" });
 
   try {
     const actor = (req.auth?.role || "").toLowerCase();
@@ -440,9 +417,7 @@ router.patch("/:id/status", requireRole("admin", "profesor"), async (req, res) =
           LIMIT 1`,
         [id]
       );
-      if (chk.rows[0]?.rol !== "estudiante") {
-        return res.status(403).json({ error: "FORBIDDEN" });
-      }
+      if (chk.rows[0]?.rol !== "estudiante") return res.status(403).json({ error: "FORBIDDEN" });
     }
 
     const { rows } = await pool.query(

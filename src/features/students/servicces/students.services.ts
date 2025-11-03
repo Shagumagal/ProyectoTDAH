@@ -1,45 +1,96 @@
-// src/features/students/servicces/students.services.ts
+// src/features/users/services/users.services.ts
 import type { Usuario } from "../../../lib/types";
-import {
-  createUser as createUserBase,
-  updateUser as updateUserBase,
-  setUserActive as setUserActiveBase,
-} from "../../users/services/users.services";
-import { authHeaders } from "../../../lib/http";            // ⬅️ IMPORTA EL HELPER
+import { authHeaders } from "../../../lib/http";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
-export async function listStudents(q = ""): Promise<Usuario[]> {
-  const url = new URL(`${API_URL}/users`);
-  url.searchParams.set("role", "estudiante");
-  if (q) url.searchParams.set("q", q);
-  const res = await fetch(url.toString(), {
-    headers: authHeaders(),                                   // ⬅️ AQUÍ
+export type RoleDb = "estudiante" | "profesor" | "psicologo" | "admin";
+export type Genero = "masculino" | "femenino" | "no_binario" | "prefiero_no_decir";
+
+export interface CreateUserPayload {
+  nombres: string;
+  apellidos: string;
+  rol: RoleDb;
+  email?: string;
+  username?: string;
+  password?: string;
+  fecha_nacimiento?: string; // YYYY-MM-DD
+  genero?: Genero;           // 👈 NUEVO
+}
+
+export interface CreateUserResp {
+  id: string;
+  login_code?: string | null;
+}
+
+export async function createUser(payload: CreateUserPayload): Promise<CreateUserResp> {
+  const res = await fetch(`${API_URL}/users`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      nombres: payload.nombres,
+      apellidos: payload.apellidos,
+      rol: payload.rol,
+      email: payload.email ?? "",
+      username: payload.username ?? "",
+      password: payload.password ?? "",
+      fecha_nacimiento: payload.fecha_nacimiento ?? "",
+      genero: payload.genero ?? "",                 // 👈 NUEVO
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || "Error al crear usuario");
+  return text ? (JSON.parse(text) as CreateUserResp) : { id: "" };
+}
+
+export async function getUsers(): Promise<Usuario[]> {
+  const res = await fetch(`${API_URL}/users`, {
+    headers: authHeaders(),
   });
   const txt = await res.text();
-  if (!res.ok) throw new Error(txt || "Error cargando alumnos");
+  if (!res.ok) throw new Error(txt || "Error cargando usuarios");
   return txt ? (JSON.parse(txt) as Usuario[]) : [];
 }
 
-export async function createStudent(payload: {
-  nombres: string;
-  apellidos: string;
-  email?: string;
-  username?: string;
-  password?: string; // opcional
-}) {
-  return createUserBase({ ...payload, rol: "estudiante" });
+export async function updateUser(
+  id: string,
+  payload: {
+    nombres?: string;
+    apellidos?: string;
+    rol?: RoleDb;
+    email?: string | null;
+    username?: string | null;
+    fecha_nacimiento?: string | null;
+    genero?: Genero | null;                           // 👈 NUEVO
+    must_change_password?: boolean;
+  }
+) {
+  const body: any = {};
+  if (payload.nombres !== undefined) body.nombres = payload.nombres;
+  if (payload.apellidos !== undefined) body.apellidos = payload.apellidos;
+  if (payload.rol !== undefined) body.rol = payload.rol;
+  if (payload.email !== undefined) body.email = payload.email ?? "";
+  if (payload.username !== undefined) body.username = payload.username ?? "";
+  if (payload.fecha_nacimiento !== undefined) body.fecha_nacimiento = payload.fecha_nacimiento ?? "";
+  if (payload.genero !== undefined) body.genero = payload.genero ?? "";      // 👈 NUEVO
+  if (payload.must_change_password !== undefined) body.must_change_password = payload.must_change_password;
+
+  const res = await fetch(`${API_URL}/users/${id}`, {
+    method: "PUT",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  const txt = await res.text();
+  if (!res.ok) throw new Error(txt || "Error actualizando usuario");
+  return txt ? JSON.parse(txt) : {};
 }
 
-export async function updateStudent(id: string, payload: {
-  nombres?: string;
-  apellidos?: string;
-  email?: string | null;
-  username?: string | null;
-}) {
-  return updateUserBase(id, payload);
-}
-
-export async function setStudentActive(id: string, is_active: boolean) {
-  return setUserActiveBase(id, is_active);
+export async function setUserActive(id: string, is_active: boolean) {
+  const res = await fetch(`${API_URL}/users/${id}/status`, {
+    method: "PATCH",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ is_active }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }

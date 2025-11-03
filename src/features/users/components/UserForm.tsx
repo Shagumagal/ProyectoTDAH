@@ -1,18 +1,19 @@
-// src/features/users/components/UserForm.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import type { Usuario } from "../../../lib/types";
+import dayjs, { Dayjs } from "dayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
-// Lo que el formulario devuelve al padre (UsersPage)
+// Tipos del form
 export type UserFormOutput = {
   id?: string;
   nombre: string;
   apellido: string;
   correo?: string;
   rol: "Alumno" | "Docente" | "Psicólogo" | "Admin";
-  username?: string;     // solo si quieres manejar alumno sin email
-  password?: string;     // opcional (solo creación)
+  username?: string;
+  password?: string;
   fecha_nacimiento?: string; // YYYY-MM-DD
-  genero?: "masculino" | "femenino" | "no_binario" | "prefiero_no_decir";
+  genero?: "masculino" | "femenino" | "no_binario" | "prefiero_no_decir" | null;
 };
 
 export type UserFormMode = "create" | "edit";
@@ -25,46 +26,19 @@ type Props = {
   className?: string;
 };
 
-const normalizeUsername = (s = "") =>
-  s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+// Helpers
+const normalizeUsername = (s = "") => s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+const emailOk = (v: string) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+const usernameOk = (v: string) => !v || /^[a-z0-9_]{3,24}$/.test(v);
 
-const emailOk = (v: string) =>
-  !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-
-const usernameOk = (v: string) =>
-  !v || /^[a-z0-9_]{3,24}$/.test(v);
-
-const GENERO_OPTS = [
-  { value: "", label: "— Selecciona (opcional) —" },
-  { value: "masculino", label: "Masculino" },
-  { value: "femenino", label: "Femenino" },
-  { value: "no_binario", label: "No binario" },
-  { value: "prefiero_no_decir", label: "Prefiero no decir" },
-] as const;
-
-type GeneroValue = (typeof GENERO_OPTS)[number]["value"];
-
-function isGenero(v: string): v is NonNullable<UserFormOutput["genero"]> {
-  return ["masculino","femenino","no_binario","prefiero_no_decir"].includes(v);
+function isAtLeast5Years(d: Dayjs | null) {
+  if (!d || !d.isValid()) return false;
+  const cut = dayjs().subtract(5, "year").endOf("day");
+  const min = dayjs("1900-01-01");
+  return d.isBefore(cut) && d.isAfter(min.subtract(1, "day"));
 }
 
-// Helpers fecha (edad mínima 5 años)
-function fmtYYYYMMDD(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-function ageOk5(s: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const [y, m, d] = s.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  const cut = new Date();
-  cut.setFullYear(cut.getFullYear() - 5);
-  // rango razonable
-  const min = new Date(1900, 0, 1);
-  return dt <= cut && dt >= min;
-}
+const fmt = (d: Dayjs | null) => (d && d.isValid() ? d.format("YYYY-MM-DD") : "");
 
 export default function UserForm({
   mode,
@@ -73,46 +47,40 @@ export default function UserForm({
   onSubmit,
   className = "",
 }: Props) {
-  // form state
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
   const [rol, setRol] = useState<UserFormOutput["rol"]>("Alumno");
   const [correo, setCorreo] = useState("");
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState(""); // solo creación
+  const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-  const [fechaNac, setFechaNac] = useState(""); // YYYY-MM-DD
-  const [genero, setGenero] = useState<GeneroValue>("");
 
-  // ui
+  const [fechaNac, setFechaNac] = useState<Dayjs | null>(null);
+  const [genero, setGenero] = useState<UserFormOutput["genero"]>(null);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isAlumno = useMemo(() => rol === "Alumno", [rol]);
 
-  // límites del date picker
-  const maxDOB = useMemo(() => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 5);
-    return fmtYYYYMMDD(d);
-  }, []);
-  const minDOB = "1900-01-01";
+  // límites del picker
+  const maxDOB = dayjs().subtract(5, "year");
+  const minDOB = dayjs("1900-01-01");
 
-  // precargar datos si estamos editando
+  // precarga cuando editas
   useEffect(() => {
     if (mode === "edit" && initialUser) {
       setNombre(initialUser.nombre ?? "");
       setApellido(initialUser.apellido ?? "");
-      // Normalizamos roles que vengan en otros labels
-      const r = (initialUser.rol as any) as UserFormOutput["rol"];
-      setRol(r === "Docente" ? "Docente" : r); // por si en tus datos aparece "Profesor"
+      setRol((initialUser.rol as any) || "Alumno");
       setCorreo(initialUser.correo ?? "");
       setUsername((initialUser as any).username ?? "");
       setPassword("");
-      setFechaNac((initialUser as any).fecha_nacimiento || "");
-      setGenero(
-        isGenero((initialUser as any).genero || "") ? (initialUser as any).genero : ""
-      );
+
+      const d = initialUser.fecha_nacimiento ? dayjs(initialUser.fecha_nacimiento) : null;
+      setFechaNac(d && d.isValid() ? d : null);
+
+      setGenero((initialUser as any).genero ?? null);
     } else {
       setNombre("");
       setApellido("");
@@ -120,8 +88,8 @@ export default function UserForm({
       setCorreo("");
       setUsername("");
       setPassword("");
-      setFechaNac("");
-      setGenero("");
+      setFechaNac(null);
+      setGenero(null);
     }
     setError(null);
   }, [mode, initialUser]);
@@ -135,14 +103,10 @@ export default function UserForm({
     if (!usernameOk(u)) return "Usuario inválido. Use 3–24 [a-z0-9_].";
 
     if (rol !== "Alumno" && !e) return "Email es obligatorio para este rol.";
-    if (isAlumno && !e && !u) return "Para Alumno sin email, ‘Usuario’ es obligatorio.";
+    if (isAlumno && !e && !u) return "Para Alumno sin email, “Usuario” es obligatorio.";
 
-    // Fecha de nacimiento
     if (isAlumno && !fechaNac) return "Fecha de nacimiento es obligatoria para Alumno.";
-    if (fechaNac && !ageOk5(fechaNac)) return "La fecha debe indicar al menos 5 años de edad.";
-
-    // Género (opcional, pero si viene debe ser válido)
-    if (genero && !isGenero(genero)) return "Género inválido.";
+    if (fechaNac && !isAtLeast5Years(fechaNac)) return "Debe tener al menos 5 años.";
 
     if (mode === "create" && password && password.length < 6) {
       return "La contraseña debe tener al menos 6 caracteres.";
@@ -153,65 +117,69 @@ export default function UserForm({
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     setError(null);
-    const msg = validate();
-    if (msg) return setError(msg);
 
-    const out: UserFormOutput = {
-      ...(mode === "edit" && initialUser ? { id: initialUser.id } : {}),
+    const err = validate();
+    if (err) {
+      setError(err);
+      return;
+    }
+
+    const payload: UserFormOutput = {
       nombre: nombre.trim(),
       apellido: apellido.trim(),
-      rol,
       correo: correo.trim() || undefined,
+      rol,
       username: normalizeUsername(username) || undefined,
-      ...(mode === "create" && password ? { password } : {}),
-      fecha_nacimiento: fechaNac || undefined,
-      genero: (genero as UserFormOutput["genero"]) || undefined,
+      password: password || undefined,
+      fecha_nacimiento: fmt(fechaNac) || undefined,
+      genero: genero ?? undefined,
     };
 
     try {
       setSaving(true);
-      await onSubmit(out);
+      await onSubmit(payload);
     } catch (e: any) {
-      setError(e?.message || "Error al guardar");
+      setError(e?.message || "Error al guardar.");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className={`grid gap-4 ${className}`} noValidate>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit} className={`space-y-6 ${className}`}>
+      {error && (
+        <div className="rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Nombre */}
         <div>
-          <label htmlFor="nombre" className="block text-sm font-semibold text-slate-300">Nombre(s)</label>
+          <label className="block text-sm font-semibold text-slate-300">Nombre(s)</label>
           <input
-            id="nombre"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             placeholder="Juan Carlos"
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            autoComplete="given-name"
           />
         </div>
 
         {/* Apellido */}
         <div>
-          <label htmlFor="apellido" className="block text-sm font-semibold text-slate-300">Apellido(s)</label>
+          <label className="block text-sm font-semibold text-slate-300">Apellido(s)</label>
           <input
-            id="apellido"
             value={apellido}
             onChange={(e) => setApellido(e.target.value)}
             placeholder="Pérez López"
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            autoComplete="family-name"
           />
         </div>
 
         {/* Rol */}
         <div>
-          <label htmlFor="rol" className="block text-sm font-semibold text-slate-300">Rol</label>
+          <label className="block text-sm font-semibold text-slate-300">Rol</label>
           <select
-            id="rol"
             value={rol}
             onChange={(e) => setRol(e.target.value as UserFormOutput["rol"])}
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
@@ -225,33 +193,79 @@ export default function UserForm({
 
         {/* Correo */}
         <div>
-          <label htmlFor="correo" className="block text-sm font-semibold text-slate-300">Correo</label>
+          <label className="block text-sm font-semibold text-slate-300">Correo</label>
           <input
-            id="correo"
             type="email"
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
             placeholder="correo@ejemplo.com"
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            autoComplete="email"
-            inputMode="email"
           />
         </div>
 
-        {/* Fecha de nacimiento */}
+        {/* DatePicker MUI */}
         <div>
-          <label htmlFor="dob" className="block text-sm font-semibold text-slate-300">
+          <label className="block text-sm font-semibold text-slate-300">
             Fecha de nacimiento {rol === "Alumno" && <span className="text-rose-400">*</span>}
           </label>
-          <input
-            id="dob"
-            type="date"
-            value={fechaNac}
-            onChange={(e) => setFechaNac(e.target.value)}
-            min={minDOB}
-            max={maxDOB}
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
+          <div className="mt-1">
+           <DatePicker
+format="DD/MM/YYYY"
+value={fechaNac}
+onChange={(d: Dayjs | null) => setFechaNac(d)}
+minDate={dayjs("1900-01-01")}
+maxDate={dayjs().subtract(5, "year")}
+slotProps={{
+textField: {
+variant: "outlined",
+fullWidth: true,
+placeholder: "dd/mm/aaaa",
+sx: {
+// Root e input en blanco (fuerza prioridad)
+"& .MuiInputBase-root, & .MuiOutlinedInput-root": {
+color: "#fff !important",
+backgroundColor: "rgba(15,23,42,.35)",
+borderRadius: "12px",
+},
+"& .MuiInputBase-input, & .MuiOutlinedInput-input": {
+color: "#fff !important",
+WebkitTextFillColor: "#fff",
+},
+"& .MuiInputBase-input::placeholder, & input::placeholder": {
+color: "rgba(255,255,255,.7) !important",
+opacity: 1,
+},
+// Bordes e icono
+"& fieldset": { borderColor: "rgba(255,255,255,.6)" },
+"&:hover fieldset": { borderColor: "#fff" },
+"& .Mui-focused fieldset, & .MuiOutlinedInput-root.Mui-focused fieldset": {
+borderColor: "#fff",
+},
+"& .MuiSvgIcon-root": { color: "#fff" },
+// Autofill
+"& input:-webkit-autofill": {
+WebkitTextFillColor: "#fff",
+WebkitBoxShadow: "0 0 0 1000px rgba(15,23,42,.35) inset",
+},
+},
+// Inline style directo al input nativo por si algo más pisa
+inputProps: { style: { color: "#fff", WebkitTextFillColor: "#fff" } },
+InputLabelProps: {
+sx: { color: "rgba(255,255,255,.85)", "&.Mui-focused": { color: "#fff" } },
+},
+},
+popper: {
+sx: {
+"& .MuiPaper-root": { backgroundColor: "#0f172a", color: "#fff" },
+"& .MuiPickersDay-root": { color: "#fff" },
+"& .MuiPickersDay-root.Mui-selected": { backgroundColor: "#6366f1", color: "#fff" },
+"& .MuiPickersCalendarHeader-label": { color: "#fff" },
+"& .MuiIconButton-root": { color: "#fff" },
+},
+},
+}}
+/>
+          </div>
           <p className="mt-1 text-xs text-slate-400">
             Debe tener al menos 5 años. {rol !== "Alumno" ? "(opcional)" : ""}
           </p>
@@ -259,26 +273,26 @@ export default function UserForm({
 
         {/* Género (opcional) */}
         <div>
-          <label htmlFor="genero" className="block text-sm font-semibold text-slate-300">Género</label>
+          <label className="block text-sm font-semibold text-slate-300">Género</label>
           <select
-            id="genero"
-            value={genero}
-            onChange={(e) => setGenero(e.target.value as GeneroValue)}
+            value={genero ?? ""}
+            onChange={(e) => setGenero((e.target.value || null) as UserFormOutput["genero"])}
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
-            {GENERO_OPTS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
+            <option value="">— Selecciona (opcional) —</option>
+            <option value="masculino">Masculino</option>
+            <option value="femenino">Femenino</option>
+            <option value="no_binario">No binario</option>
+            <option value="prefiero_no_decir">Prefiero no decir</option>
           </select>
         </div>
 
         {/* Username */}
         <div className="md:col-span-2">
-          <label htmlFor="username" className="block text-sm font-semibold text-slate-300">
+          <label className="block text-sm font-semibold text-slate-300">
             Usuario <span className="text-slate-400">(si no tiene email)</span>
           </label>
           <input
-            id="username"
             value={username}
             onChange={(e) => setUsername(normalizeUsername(e.target.value))}
             placeholder="alumno_123 (a-z, 0-9, _)"
@@ -296,7 +310,7 @@ export default function UserForm({
         {mode === "create" && (
           <div className="md:col-span-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="password" className="block text-sm font-semibold text-slate-300">
+              <label className="block text-sm font-semibold text-slate-300">
                 Contraseña <span className="text-slate-400">(opcional)</span>
               </label>
               <button
@@ -309,36 +323,31 @@ export default function UserForm({
               </button>
             </div>
             <input
-              id="password"
               type={showPass ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Mín. 6 caracteres"
               className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               autoComplete="new-password"
-              minLength={6}
             />
           </div>
         )}
       </div>
 
-      {error && <p className="text-sm text-rose-500" role="alert">{error}</p>}
-
-      <div className="flex items-center justify-end gap-2 pt-2">
+      <div className="flex items-center justify-end gap-3">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-xl px-4 py-2 bg-slate-800 text-slate-200 hover:bg-slate-700"
+          className="rounded-xl bg-slate-600/40 px-5 py-2.5 text-slate-200 hover:bg-slate-600/60"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold"
-          aria-busy={saving}
+          className="rounded-xl bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {saving ? "Guardando…" : mode === "create" ? "Guardar" : "Actualizar"}
+          {saving ? "Guardando..." : "Guardar"}
         </button>
       </div>
     </form>
