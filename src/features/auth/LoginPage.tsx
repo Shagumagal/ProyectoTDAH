@@ -1,44 +1,8 @@
 // src/features/auth/LoginPage.tsx
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom"; // ⬅️ agregado Link
-
+import { useNavigate, Link } from "react-router-dom";
 import { ROUTES } from "../../lib/routes";
 import { loginPassword, loginWithCode } from "./services/auth.services";
-
-/* === Type guards locales (no cambian tus servicios/typings) === */
-type AnyObj = Record<string, any>;
-
-function has<K extends string>(o: unknown, k: K): o is AnyObj & Record<K, unknown> {
-  return !!o && typeof o === "object" && k in (o as AnyObj);
-}
-
-function isTwoFARequired(o: unknown): o is {
-  status: "2FA_REQUIRED";
-  user_id: number;
-  email: string;
-  expires_in?: number;
-  role?: string;
-  must_change?: boolean;
-} {
-  return has(o, "status") && (o as AnyObj).status === "2FA_REQUIRED" && has(o, "user_id") && has(o, "email");
-}
-
-function isLoginOk(o: unknown): o is {
-  status?: "OK";
-  token?: string;
-  user?: { id: number; role: string; must_change?: boolean };
-  user_id?: number; // compat
-  role?: string;
-  must_change?: boolean;
-} {
-  // OK moderno con status, o compat con user_id
-  return (has(o, "status") && (o as AnyObj).status === "OK") || has(o, "user_id");
-}
-
-function isErrorResp(o: unknown): o is { error: string } {
-  return has(o, "error") && typeof (o as AnyObj).error === "string";
-}
-/* ============================================================= */
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -61,25 +25,14 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
+      // loginPassword ahora devuelve { twofa: true|false }
       const r = await loginPassword(identifier.trim(), password);
-
-      if (isTwoFARequired(r)) {
-        sessionStorage.setItem("pending2fa", JSON.stringify({ user_id: r.user_id, email: r.email }));
+      if (r.twofa) {
+        // guardado de pending2fa ya lo hace el service
         nav(ROUTES.authCode);
-        return;
-      }
-
-      if (isLoginOk(r)) {
-        if ("token" in r && r.token) localStorage.setItem("auth_token", r.token as string);
-        if (("must_change" in r && r.must_change) || ("user" in r && (r as AnyObj).user?.must_change)) {
-          console.warn("El usuario debe cambiar su contraseña tras el acceso.");
-        }
+      } else {
         nav(ROUTES.usuarios);
-        return;
       }
-
-      if (isErrorResp(r)) throw new Error(mapError(r.error));
-      throw new Error("Credenciales inválidas");
     } catch (err: any) {
       setError(err?.message || "Error de inicio de sesión");
     } finally {
@@ -92,19 +45,9 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const r = await loginWithCode(username.trim(), code.trim());
-
-      if (isLoginOk(r)) {
-        if ("token" in r && r.token) localStorage.setItem("auth_token", r.token as string);
-        if ("user" in r && (r as AnyObj).user?.must_change) {
-          console.info("El usuario debe cambiar su contraseña en el primer inicio de sesión.");
-        }
-        nav(ROUTES.usuarios);
-        return;
-      }
-
-      if (isErrorResp(r)) throw new Error(mapError(r.error));
-      throw new Error("Código inválido o expirado");
+      // loginWithCode devuelve { ok: true } si todo va bien y guarda el token
+      await loginWithCode(username.trim(), code.trim());
+      nav(ROUTES.usuarios);
     } catch (err: any) {
       setError(err?.message || "Código inválido o expirado");
     } finally {
@@ -163,7 +106,6 @@ export default function LoginPage() {
                     Tengo un código
                   </button>
                   <span>·</span>
-                  {/* ⬇️ Enlace real a recuperación */}
                   <Link to={ROUTES.forgot} className="underline underline-offset-4">
                     Olvidé mi contraseña
                   </Link>
@@ -224,20 +166,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-}
-
-/** Mapear errores técnicos a mensajes amigables */
-function mapError(code: string): string {
-  switch (code) {
-    case "INVALID_CREDENTIALS":
-      return "Credenciales inválidas";
-    case "NO_CODE":
-      return "No hay un código pendiente.";
-    case "INVALID_OR_EXPIRED":
-      return "El código es inválido o ha expirado.";
-    case "NOT_FOUND":
-      return "Usuario no encontrado.";
-    default:
-      return code;
-  }
 }

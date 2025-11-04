@@ -1,5 +1,7 @@
+// src/features/auth/TwoFactorPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { verify2FA, resend2FA } from "./services/auth.services";
 
 /**
  * TwoFactorPage
@@ -7,9 +9,7 @@ import { useLocation, useNavigate } from "react-router-dom";
  * - Diseño responsive, dark-friendly (Tailwind)
  * - Maneja pegado, auto-avance, backspace, reenvío con contador
  * - Espera encontrar `pending2fa` en sessionStorage o en location.state { user_id, email }
- *   → Al recibir 2FA_REQUIRED en /auth/login-password, hacer:
- *      sessionStorage.setItem('pending2fa', JSON.stringify({ user_id, email }))
- *      navigate('/auth/code')
+ *   → Al recibir 2FA_REQUIRED en /auth/login-password, el service ya guarda pending2fa
  */
 export default function TwoFactorPage() {
   const navigate = useNavigate();
@@ -62,8 +62,6 @@ export default function TwoFactorPage() {
     const id = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(id);
   }, []);
-
-  const API_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:4000";
 
   const maskedEmail = useMemo(() => (email ? maskEmail(email) : ""), [email]);
 
@@ -120,19 +118,7 @@ export default function TwoFactorPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const r = await fetch(`${API_URL}/auth/verify-2fa`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, code })
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error || "Código inválido o expirado");
-
-      // Guardar token y limpiar estado temporal
-      if (data?.token) localStorage.setItem("auth_token", data.token);
-      sessionStorage.removeItem("pending2fa");
-
-      // TODO: ajusta la ruta de éxito según tu app
+      await verify2FA(code); // guarda token y limpia pending2fa
       navigate("/app/usuarios", { replace: true });
     } catch (e: any) {
       setError(e.message || "No se pudo verificar el código");
@@ -148,13 +134,7 @@ export default function TwoFactorPage() {
     setResending(true);
     setError(null);
     try {
-      const r = await fetch(`${API_URL}/auth/resend-2fa`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId })
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error || "No se pudo reenviar");
+      await resend2FA();
       setSeconds(INITIAL_SECONDS);
     } catch (e: any) {
       setError(e.message || "No se pudo reenviar el código");
