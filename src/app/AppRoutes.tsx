@@ -6,14 +6,17 @@ import { ROUTES } from "../lib/routes";
 import TwoFactorPage from "../features/auth/TwoFactorPage";
 import ProfilePage from "../features/auth/ProfilePage";
 
-const UsersPage    = lazy(() => import("../features/users/pages/UsersPage"));
-const LoginPage    = lazy(() => import("../features/auth/LoginPage"));
-const StudentsPage = lazy(() => import("../features/students/pages/StudentsPage"));
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import dayjs from "dayjs";
+import "dayjs/locale/es";
+dayjs.locale("es");
+
+const UsersPage          = lazy(() => import("../features/users/pages/UsersPage"));
+const LoginPage          = lazy(() => import("../features/auth/LoginPage"));
+const StudentsPage       = lazy(() => import("../features/students/pages/StudentsPage"));
 const ForgotPasswordPage = lazy(() => import("../features/auth/ForgotPasswordPage"));
 const ResetPasswordPage  = lazy(() => import("../features/auth/ResetPasswordPage"));
-
-// …
-
 
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
@@ -60,7 +63,6 @@ function ProtectedRoute({
   if (!role || !allow.includes(role)) {
     return <Navigate to={homeByRole(role)} replace />;
   }
-  // AppShell envuelve el contenido protegido
   return <AppShell>{children}</AppShell>;
 }
 
@@ -71,65 +73,70 @@ function AppHomeRedirect() {
 
 export default function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Cargando…</div>}>
-        <Routes>
-          {/* Público */}
-          <Route path="/" element={<LoginPage />} />
-          <Route path={ROUTES.login} element={<LoginPage />} />
-          <Route path={ROUTES.authCode} element={<TwoFactorPage />} />
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <BrowserRouter>
+        <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Cargando…</div>}>
+          <Routes>
+            {/* Público */}
+            <Route path="/" element={<LoginPage />} />
+            <Route path={ROUTES.login} element={<LoginPage />} />
+            <Route path={ROUTES.authCode} element={<TwoFactorPage />} />
 
-          {/* Protegido + control por rol */}
-          <Route
-            path={ROUTES.usuarios}
-            element={
-              <ProtectedRoute allow={["admin"]}>
-                <UsersPage />
-              </ProtectedRoute>
-            }
-          />
+            {/* Protegido + control por rol */}
+            <Route
+              path={ROUTES.usuarios}
+              element={
+                <ProtectedRoute allow={["admin"]}>
+                  <UsersPage />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path={ROUTES.alumnos}
-            element={
-              <ProtectedRoute allow={["admin", "profesor"]}>
-                <StudentsPage />
-              </ProtectedRoute>
-            }
-          />
-<Route path={ROUTES.forgot} element={<ForgotPasswordPage />} />
-<Route path={ROUTES.reset}  element={<ResetPasswordPage />} />
-          <Route
-            path={ROUTES.videojuego}
-            element={
-              <ProtectedRoute allow={["admin", "profesor", "psicologo", "estudiante"]}>
-                <div className="p-6">Videojuego (pendiente)</div>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path={ROUTES.alumnos}
+              element={
+                <ProtectedRoute allow={["admin", "profesor"]}>
+                  <StudentsPage />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path={ROUTES.resultados}
-            element={
-              <ProtectedRoute allow={["admin", "profesor", "psicologo"]}>
-                <div className="p-6">Resultados (pendiente)</div>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-  path={ROUTES.perfil}
-  element={
-    <ProtectedRoute allow={["admin","profesor","psicologo","estudiante"]}>
-      <ProfilePage />
-    </ProtectedRoute>
-  }
-/>
+            <Route path={ROUTES.forgot} element={<ForgotPasswordPage />} />
+            <Route path={ROUTES.reset}  element={<ResetPasswordPage />} />
 
-          {/* Redirecciones según rol */}
-          <Route path={ROUTES.app} element={<AppHomeRedirect />} />
-          <Route path="*" element={<AppHomeRedirect />} />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+            <Route
+              path={ROUTES.videojuego}
+              element={
+                <ProtectedRoute allow={["admin", "profesor", "psicologo", "estudiante"]}>
+                  <div className="p-6">Videojuego (pendiente)</div>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path={ROUTES.resultados}
+              element={
+                <ProtectedRoute allow={["admin", "profesor", "psicologo"]}>
+                  <div className="p-6">Resultados (pendiente)</div>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path={ROUTES.perfil}
+              element={
+                <ProtectedRoute allow={["admin","profesor","psicologo","estudiante"]}>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Redirecciones según rol */}
+            <Route path={ROUTES.app} element={<AppHomeRedirect />} />
+            <Route path="*" element={<AppHomeRedirect />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </LocalizationProvider>
   );
 }

@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { Usuario } from "../../../lib/types";
 import dayjs, { Dayjs } from "dayjs";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import WhiteDatePicker from "../../../componentes/WhiteDatePicker";
+// ❗ Usa la ruta real donde guardaste tu WhiteDatePicker
+ 
 
 // Tipos del form
 export type UserFormOutput = {
@@ -27,7 +29,8 @@ type Props = {
 };
 
 // Helpers
-const normalizeUsername = (s = "") => s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+const normalizeUsername = (s = "") =>
+  s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
 const emailOk = (v: string) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const usernameOk = (v: string) => !v || /^[a-z0-9_]{3,24}$/.test(v);
 
@@ -63,7 +66,7 @@ export default function UserForm({
 
   const isAlumno = useMemo(() => rol === "Alumno", [rol]);
 
-  // límites del picker
+  // límites del picker (por si los quieres reusar)
   const maxDOB = dayjs().subtract(5, "year");
   const minDOB = dayjs("1900-01-01");
 
@@ -77,7 +80,9 @@ export default function UserForm({
       setUsername((initialUser as any).username ?? "");
       setPassword("");
 
-      const d = initialUser.fecha_nacimiento ? dayjs(initialUser.fecha_nacimiento) : null;
+      const d = initialUser.fecha_nacimiento
+        ? dayjs(initialUser.fecha_nacimiento)
+        : null;
       setFechaNac(d && d.isValid() ? d : null);
 
       setGenero((initialUser as any).genero ?? null);
@@ -98,15 +103,19 @@ export default function UserForm({
     const e = correo.trim();
     const u = normalizeUsername(username);
 
-    if (!nombre.trim() && !apellido.trim()) return "Nombre(s) o Apellido(s) requerido(s).";
+    if (!nombre.trim() && !apellido.trim())
+      return "Nombre(s) o Apellido(s) requerido(s).";
     if (!emailOk(e)) return "Correo inválido.";
     if (!usernameOk(u)) return "Usuario inválido. Use 3–24 [a-z0-9_].";
 
     if (rol !== "Alumno" && !e) return "Email es obligatorio para este rol.";
-    if (isAlumno && !e && !u) return "Para Alumno sin email, “Usuario” es obligatorio.";
+    if (isAlumno && !e && !u)
+      return "Para Alumno sin email, “Usuario” es obligatorio.";
 
-    if (isAlumno && !fechaNac) return "Fecha de nacimiento es obligatoria para Alumno.";
-    if (fechaNac && !isAtLeast5Years(fechaNac)) return "Debe tener al menos 5 años.";
+    if (isAlumno && !fechaNac)
+      return "Fecha de nacimiento es obligatoria para Alumno.";
+    if (fechaNac && !isAtLeast5Years(fechaNac))
+      return "Debe tener al menos 5 años.";
 
     if (mode === "create" && password && password.length < 6) {
       return "La contraseña debe tener al menos 6 caracteres.";
@@ -124,7 +133,13 @@ export default function UserForm({
       return;
     }
 
+    // Cuando editamos un usuario ya existente necesitamos pasar su id para que
+    // la página `UsersPage` pueda distinguir entre crear y actualizar.
+    // Al no incluir `id` en el payload, el formulario siempre disparaba la
+    // lógica de creación y provocaba un error 409 por duplicidad de email/usuario.
     const payload: UserFormOutput = {
+      // Para edición incluimos el ID del usuario, de lo contrario queda undefined
+      id: mode === "edit" ? initialUser?.id : undefined,
       nombre: nombre.trim(),
       apellido: apellido.trim(),
       correo: correo.trim() || undefined,
@@ -156,7 +171,9 @@ export default function UserForm({
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Nombre */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Nombre(s)</label>
+          <label className="block text-sm font-semibold text-slate-300">
+            Nombre(s)
+          </label>
           <input
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
@@ -167,7 +184,9 @@ export default function UserForm({
 
         {/* Apellido */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Apellido(s)</label>
+          <label className="block text-sm font-semibold text-slate-300">
+            Apellido(s)
+          </label>
           <input
             value={apellido}
             onChange={(e) => setApellido(e.target.value)}
@@ -178,7 +197,9 @@ export default function UserForm({
 
         {/* Rol */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Rol</label>
+          <label className="block text-sm font-semibold text-slate-300">
+            Rol
+          </label>
           <select
             value={rol}
             onChange={(e) => setRol(e.target.value as UserFormOutput["rol"])}
@@ -193,7 +214,9 @@ export default function UserForm({
 
         {/* Correo */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Correo</label>
+          <label className="block text-sm font-semibold text-slate-300">
+            Correo
+          </label>
           <input
             type="email"
             value={correo}
@@ -206,65 +229,27 @@ export default function UserForm({
         {/* DatePicker MUI */}
         <div>
           <label className="block text-sm font-semibold text-slate-300">
-            Fecha de nacimiento {rol === "Alumno" && <span className="text-rose-400">*</span>}
+            Fecha de nacimiento{" "}
+            {rol === "Alumno" && <span className="text-rose-400">*</span>}
           </label>
           <div className="mt-1">
-           <DatePicker
-format="DD/MM/YYYY"
-value={fechaNac}
-onChange={(d: Dayjs | null) => setFechaNac(d)}
-minDate={dayjs("1900-01-01")}
-maxDate={dayjs().subtract(5, "year")}
-slotProps={{
-textField: {
-variant: "outlined",
-fullWidth: true,
-placeholder: "dd/mm/aaaa",
-sx: {
-// Root e input en blanco (fuerza prioridad)
-"& .MuiInputBase-root, & .MuiOutlinedInput-root": {
-color: "#fff !important",
-backgroundColor: "rgba(15,23,42,.35)",
-borderRadius: "12px",
-},
-"& .MuiInputBase-input, & .MuiOutlinedInput-input": {
-color: "#fff !important",
-WebkitTextFillColor: "#fff",
-},
-"& .MuiInputBase-input::placeholder, & input::placeholder": {
-color: "rgba(255,255,255,.7) !important",
-opacity: 1,
-},
-// Bordes e icono
-"& fieldset": { borderColor: "rgba(255,255,255,.6)" },
-"&:hover fieldset": { borderColor: "#fff" },
-"& .Mui-focused fieldset, & .MuiOutlinedInput-root.Mui-focused fieldset": {
-borderColor: "#fff",
-},
-"& .MuiSvgIcon-root": { color: "#fff" },
-// Autofill
-"& input:-webkit-autofill": {
-WebkitTextFillColor: "#fff",
-WebkitBoxShadow: "0 0 0 1000px rgba(15,23,42,.35) inset",
-},
-},
-// Inline style directo al input nativo por si algo más pisa
-inputProps: { style: { color: "#fff", WebkitTextFillColor: "#fff" } },
-InputLabelProps: {
-sx: { color: "rgba(255,255,255,.85)", "&.Mui-focused": { color: "#fff" } },
-},
-},
-popper: {
-sx: {
-"& .MuiPaper-root": { backgroundColor: "#0f172a", color: "#fff" },
-"& .MuiPickersDay-root": { color: "#fff" },
-"& .MuiPickersDay-root.Mui-selected": { backgroundColor: "#6366f1", color: "#fff" },
-"& .MuiPickersCalendarHeader-label": { color: "#fff" },
-"& .MuiIconButton-root": { color: "#fff" },
-},
-},
-}}
-/>
+            <WhiteDatePicker
+              label="Fecha de Nacimiento"
+              format="DD/MM/YYYY"
+              value={fechaNac}
+              // El onChange del DatePicker devuelve dos parámetros (valor y entrada de teclado).
+              // Usamos una función explícita para extraer sólo el valor y evitar que React pase
+              // inadvertidamente el segundo argumento a setFechaNac.
+              onChange={(newValue: Dayjs | null) => setFechaNac(newValue)}
+              minDate={minDOB}
+              maxDate={maxDOB}
+              slotProps={{
+                popper: {
+                  disablePortal: false, // que se renderice en <body>
+                  sx: { zIndex: 2100 }, // por encima del overlay del modal
+                },
+              }}
+            />
           </div>
           <p className="mt-1 text-xs text-slate-400">
             Debe tener al menos 5 años. {rol !== "Alumno" ? "(opcional)" : ""}
@@ -273,10 +258,14 @@ sx: {
 
         {/* Género (opcional) */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">Género</label>
+          <label className="block text-sm font-semibold text-slate-300">
+            Género
+          </label>
           <select
             value={genero ?? ""}
-            onChange={(e) => setGenero((e.target.value || null) as UserFormOutput["genero"])}
+            onChange={(e) =>
+              setGenero((e.target.value || null) as UserFormOutput["genero"])
+            }
             className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
             <option value="">— Selecciona (opcional) —</option>

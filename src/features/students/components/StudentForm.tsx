@@ -1,130 +1,207 @@
-// src/features/users/components/StudentForm.tsx
+// src/features/students/components/StudentForm.tsx
 import React, { useEffect, useMemo, useState } from "react";
 
 type Genero = "masculino" | "femenino" | "no_binario" | "prefiero_no_decir";
 
 type Props = {
   initial?: {
+    // Aceptamos ambas variantes para compatibilidad: nombre/nombres, apellido/apellidos
+    id?: string;
+    nombre?: string;
     nombres?: string;
+    apellido?: string;
     apellidos?: string;
-    correo?: string;
+    correo?: string;     // también puede venir como email
+    email?: string;
     username?: string;
-    fecha_nacimiento?: string;     // ← opcional en edición
-    genero?: Genero | null;        // ← opcional
-  };
+    fecha_nacimiento?: string | null; // "YYYY-MM-DD" o ISO
+    genero?: Genero | null;
+  } | null;
   mode: "create" | "edit";
   onSubmit: (data: {
+    id?: string;
     nombres: string;
     apellidos: string;
     email?: string | null;
     username?: string | null;
     password?: string;
-    fecha_nacimiento: string;      // ← OBLIGATORIO para alumno
+    fecha_nacimiento: string;  // YYYY-MM-DD
     genero?: Genero | null;
-  }) => Promise<void>;
+  }) => Promise<void> | void;
   onCancel: () => void;
 };
 
+// -------- Helpers ----------
 function fmtYYYYMMDD(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-function ageOk5(s: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const [y, m, d] = s.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  const cut = new Date();
-  cut.setFullYear(cut.getFullYear() - 5);
-  const min = new Date(1900, 0, 1);
-  return dt <= cut && dt >= min;
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
+/** Normaliza cualquier string de fecha a YYYY-MM-DD para <input type="date"> */
+function toDateInputValue(s?: string | null): string {
+  if (!s) return "";
+  // Si viene ISO "2020-11-07T00:00:00.000Z" → recorta a 10
+  if (s.length > 10 && s.includes("T")) return s.slice(0, 10);
+  // Si ya es "YYYY-MM-DD" lo devolvemos igual
+  return s;
+}
+
+function ageOk5(ymd: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dob = new Date(Date.UTC(y, m - 1, d));
+  const min = new Date();
+  min.setUTCFullYear(min.getUTCFullYear() - 5);
+  // debe ser < hoy-5años y razonable
+  return dob.getTime() <= min.getTime() && dob.getUTCFullYear() >= 1900;
+}
+
+// -------- Componente ----------
 export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props) {
-  const [nombres, setNombres] = useState(initial?.nombres ?? "");
-  const [apellidos, setApellidos] = useState(initial?.apellidos ?? "");
-  const [email, setEmail] = useState(initial?.correo ?? "");
-  const [username, setUsername] = useState(initial?.username ?? "");
-  const [password, setPassword] = useState("");
-  const [fechaNac, setFechaNac] = useState(initial?.fecha_nacimiento ?? "");
-  const [genero, setGenero] = useState<Genero | "">((initial?.genero as any) ?? "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setNombres(initial?.nombres ?? "");
-    setApellidos(initial?.apellidos ?? "");
-    setEmail(initial?.correo ?? "");
-    setUsername(initial?.username ?? "");
-    setFechaNac(initial?.fecha_nacimiento ?? "");
-    setGenero(((initial?.genero as any) ?? "") as any);
-  }, [initial]);
-
   const isCreate = mode === "create";
+
+  const [nombres, setNombres] = useState("");
+  const [apellidos, setApellidos] = useState("");
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [fechaNac, setFechaNac] = useState<string>("");
+  const [genero, setGenero] = useState<Genero | null>(null);
+
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const maxDOB = useMemo(() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() - 5);
     return fmtYYYYMMDD(d);
   }, []);
+
   const minDOB = "1900-01-01";
+
+  // Cargar datos iniciales (edición)
+  useEffect(() => {
+    setNombres((initial?.nombres ?? initial?.nombre ?? "").trim());
+    setApellidos((initial?.apellidos ?? initial?.apellido ?? "").trim());
+    setEmail((initial?.correo ?? initial?.email ?? "").trim());
+    setUsername((initial?.username ?? "").trim());
+    setFechaNac(toDateInputValue(initial?.fecha_nacimiento ?? ""));
+    setGenero((initial?.genero ?? null) as Genero | null);
+  }, [initial]);
+
+  function validate() {
+    if (!nombres.trim() || !apellidos.trim()) return "Nombre y apellido son obligatorios.";
+    if (!email.trim() && !username.trim()) return "Debe tener email o username.";
+    if (!fechaNac) return "La fecha de nacimiento es obligatoria.";
+    if (!ageOk5(fechaNac)) return "Debe tener al menos 5 años.";
+    return null;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const v = validate();
+    if (v) {
+      setError(v);
+      return;
+    }
+
     try {
-      const payload = {
+      setLoading(true);
+      await onSubmit({
+        id: initial?.id, // ← MUY IMPORTANTE PARA EDITAR
         nombres: nombres.trim(),
         apellidos: apellidos.trim(),
         email: email.trim() || null,
         username: username.trim() || null,
         ...(isCreate ? { password: password.trim() } : {}),
-        fecha_nacimiento: (fechaNac || "").trim(),         // ← se envía al back
+        fecha_nacimiento: fechaNac, // ya viene YYYY-MM-DD
         genero: (genero || null) as Genero | null,
-      };
-
-      if (!payload.nombres || !payload.apellidos) throw new Error("Nombre y apellido son obligatorios.");
-      if (!payload.email && !payload.username) throw new Error("Debe tener email o username.");
-      if (!payload.fecha_nacimiento) throw new Error("La fecha de nacimiento es obligatoria.");
-      if (!ageOk5(payload.fecha_nacimiento)) throw new Error("Debe tener al menos 5 años.");
-
-      setLoading(true);
-      await onSubmit(payload);
+      });
     } catch (err: any) {
-      setError(err?.message || "Error al guardar");
+      setError(err?.message || "Error al guardar alumno.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="text-sm font-medium">Nombres</label>
-          <input value={nombres} onChange={(e) => setNombres(e.target.value)}
-                 className="mt-1 w-full rounded-xl border px-4 py-2.5 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"/>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {error && (
+        <div className="rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+          {error}
         </div>
-        <div>
-          <label className="text-sm font-medium">Apellidos</label>
-          <input value={apellidos} onChange={(e) => setApellidos(e.target.value)}
-                 className="mt-1 w-full rounded-xl border px-4 py-2.5 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"/>
-        </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-medium">Fecha de nacimiento *</label>
-          <input type="date" value={fechaNac} onChange={(e) => setFechaNac(e.target.value)}
-                 min={minDOB} max={maxDOB}
-                 className="mt-1 w-full rounded-xl border px-4 py-2.5 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"/>
-          <p className="text-xs text-slate-500 mt-1">Debe tener al menos 5 años.</p>
+          <label className="text-sm font-medium dark:text-white">Nombre(s)</label>
+          <input
+            className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+            value={nombres}
+            onChange={(e) => setNombres(e.target.value)}
+            autoComplete="given-name"
+          />
         </div>
         <div>
+          <label className="text-sm font-medium dark:text-white">Apellido(s)</label>
+          <input
+            className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+            value={apellidos}
+            onChange={(e) => setApellidos(e.target.value)}
+            autoComplete="family-name"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium dark:text-white">Correo</label>
+          <input
+            type="email"
+            className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium dark:text-white ">Usuario (si no tiene email)</label>
+          <input
+            className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="alumno_123"
+            autoComplete="username"
+            pattern="^[a-z0-9_]{3,24}$"
+            title="3–24 caracteres: a–z, 0–9 y guión bajo"
+          />
+        </div>
+
+        {/* Fecha de nacimiento */}
+        <div>
+          <label className="text-sm font-medium dark:text-white" >Fecha de nacimiento *</label>
+          <input
+            type="date"
+            value={fechaNac}
+            onChange={(e) => setFechaNac(e.target.value)}
+            min={minDOB}
+            max={maxDOB}
+            className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+          />
+          <p className="text-xs text-slate-500 mt-1">Debe tener al menos 5 años.</p>
+        </div>
+
+        {/* Género */}
+        <div>
           <label className="text-sm font-medium">Género (opcional)</label>
-          <select value={genero} onChange={(e) => setGenero(e.target.value as any)}
-                  className="mt-1 w-full rounded-xl border px-4 py-2.5 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600">
+          <select
+            value={genero ?? ""}
+            onChange={(e) => setGenero((e.target.value || "") as Genero | null)}
+            className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+          >
             <option value="">— Selecciona (opcional) —</option>
             <option value="masculino">Masculino</option>
             <option value="femenino">Femenino</option>
@@ -132,40 +209,39 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
             <option value="prefiero_no_decir">Prefiero no decir</option>
           </select>
         </div>
+
+        {/* Password solo en creación */}
+        {isCreate && (
+          <div className="sm:col-span-2">
+            <label className="text-sm font-medium">
+              Contraseña <span className="text-slate-400">(opcional)</span>
+            </label>
+            <input
+              type="password"
+              className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+          </div>
+        )}
       </div>
 
-      <div>
-        <label className="text-sm font-medium">Email (opcional)</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)}
-               className="mt-1 w-full rounded-xl border px-4 py-2.5 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
-               placeholder="alumno@colegio.edu.bo"/>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium">Username (si no hay email)</label>
-        <input value={username} onChange={(e) => setUsername(e.target.value)}
-               className="mt-1 w-full rounded-xl border px-4 py-2.5 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
-               placeholder="alumno001"/>
-        <p className="text-xs text-slate-500 mt-1">Si no hay email, el username es obligatorio (3–24, a-z, 0–9, _).</p>
-      </div>
-
-      {isCreate && (
-        <div>
-          <label className="text-sm font-medium">Contraseña (opcional)</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                 className="mt-1 w-full rounded-xl border px-4 py-2.5 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600"
-                 placeholder="Dejar vacío para emitir código temporal"/>
-        </div>
-      )}
-
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-
-      <div className="flex items-center gap-3 justify-end">
-        <button type="button" onClick={onCancel}
-                className="rounded-xl px-4 py-2.5 border border-slate-300 dark:border-slate-700">Cancelar</button>
-        <button disabled={loading}
-                className="rounded-xl px-4 py-2.5 bg-indigo-600 text-white font-semibold disabled:opacity-60">
-          {loading ? "Guardando…" : (isCreate ? "Registrar alumno" : "Guardar cambios")}
+      <div className="flex items-center justify-end gap-3 pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-xl border border-slate-600 bg-slate-800/60 px-5 py-2.5 font-semibold text-slate-200 hover:bg-slate-700"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-xl bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? "Guardando..." : "Guardar"}
         </button>
       </div>
     </form>
