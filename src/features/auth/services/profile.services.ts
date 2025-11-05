@@ -1,6 +1,15 @@
+// src/features/auth/services/profile.services.ts
 import { authHeaders } from "../../../lib/http";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
+/** Valores permitidos por el backend (o null) */
+export type Gender =
+  | "masculino"
+  | "femenino"
+  | "no_binario"
+  | "prefiero_no_decir"
+  | null;
 
 export interface MeData {
   id: number;
@@ -10,8 +19,13 @@ export interface MeData {
   username: string | null;
   rol: string;
   activo: boolean;
+  /** "YYYY-MM-DD" o null */
+  fecha_nacimiento: string | null;
+  /** uno de los permitidos o null */
+  genero: Gender;
 }
 
+/** Obtener mi perfil */
 export async function getMe(): Promise<MeData> {
   const res = await fetch(`${API_URL}/me`, { headers: authHeaders() });
   const txt = await res.text();
@@ -19,11 +33,16 @@ export async function getMe(): Promise<MeData> {
   return JSON.parse(txt) as MeData;
 }
 
+/** Actualizar mi perfil (cualquiera de los campos es opcional) */
 export async function updateMe(payload: {
   nombres?: string;
   apellidos?: string;
   email?: string | null | "";
   username?: string | null | "";
+  /** "YYYY-MM-DD" o null o "" para limpiar */
+  fecha_nacimiento?: string | null | "";
+  /** permitido o null/"" para limpiar */
+  genero?: Gender | "" ;
 }) {
   const res = await fetch(`${API_URL}/me`, {
     method: "PUT",
@@ -35,7 +54,11 @@ export async function updateMe(payload: {
   return JSON.parse(txt);
 }
 
-export async function changeMyPassword(current_password: string, new_password: string) {
+/** Cambiar mi contraseña */
+export async function changeMyPassword(
+  current_password: string,
+  new_password: string
+) {
   const res = await fetch(`${API_URL}/me/password`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
@@ -45,3 +68,11 @@ export async function changeMyPassword(current_password: string, new_password: s
   if (!res.ok) throw new Error(txt || "No se pudo cambiar la contraseña");
   return JSON.parse(txt);
 }
+
+/** Útil para combos en el UI */
+export const GENDERS: Exclude<Gender, null>[] = [
+  "masculino",
+  "femenino",
+  "no_binario",
+  "prefiero_no_decir",
+];

@@ -1,10 +1,8 @@
-// src/app/layout/AppShell.tsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ROUTES } from "../../lib/routes";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../../features/auth/services/auth.services";
 import ConfirmLogoutDialog from "../../features/auth/components/ConfirmLogoutDialog";
-import { useThemeMode } from "../../theme/ThemeProvider";
 
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
@@ -19,25 +17,32 @@ function getRoleFromToken(): Role | null {
   const t = localStorage.getItem("auth_token");
   if (!t) return null;
   const p = parseJwt(t);
-  const r = (p?.role || "").toLowerCase();
-  return (["admin","profesor","psicologo","estudiante"] as Role[]).includes(r as Role) ? (r as Role) : null;
+  return (p?.role || null) as Role | null;
 }
 
 const ALLOWED_ROUTES: Record<Role, string[]> = {
   admin:     [ROUTES.usuarios, ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados],
   profesor:  [ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados],
-  psicologo: [ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados],
-  estudiante:[ROUTES.videojuego,                ROUTES.perfil,  ROUTES.resultados],
+  // ⬇️ Psicólogo SIN alumnos
+  psicologo: [ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados],
+  estudiante:[ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados],
 };
 
-function ThemeToggleButton() {
-  const { mode, toggle } = useThemeMode();
-  const isDark = mode === "dark";
+function DarkModeToggle() {
+  const [isDark, setIsDark] = useState(true);
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+    localStorage.setItem("tdah_dark", String(isDark));
+  }, [isDark]);
+  useEffect(() => {
+    const stored = localStorage.getItem("tdah_dark");
+    if (stored) setIsDark(stored === "true");
+  }, []);
   return (
     <button
-      onClick={toggle}
+      onClick={() => setIsDark(d => !d)}
       className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700"
-      title={isDark ? "Cambiar a claro" : "Cambiar a oscuro"}
+      title={isDark ? "Oscuro" : "Claro"}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" strokeWidth="2" />
@@ -52,37 +57,33 @@ function AvatarMini() {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const [showLogout, setShowLogout] = useState(false);
-  const [closing, setClosing] = useState(false);
+  const [openMobile, setOpenMobile] = useState(false);
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
   const nav = useNavigate();
 
   const baseNav = useMemo(() => ([
-    { to: ROUTES.usuarios,   label: "Usuarios",   icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" strokeWidth="2"/><circle cx="9" cy="7" r="4" strokeWidth="2"/><path d="M22 21v-2a4 4 0 0 0-3-3.87" strokeWidth="2"/></svg>)},
-    { to: ROUTES.videojuego, label: "Videojuego", icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="6" width="20" height="12" rx="2" ry="2" strokeWidth="2"/><path d="M7 12h4M9 10v4" strokeWidth="2"/><circle cx="17" cy="11" r="1"/><circle cx="19" cy="13" r="1"/></svg>)},
-    { to: ROUTES.alumnos,    label: "Alumnos",    icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m22 7-10-5L2 7l10 5 10-5z" strokeWidth="2"/><path d="M2 17l10 5 10-5" strokeWidth="2"/><path d="M2 12l10 5 10-5" strokeWidth="2"/></svg>)},
-    { to: ROUTES.perfil,     label: "Perfil",     icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4" strokeWidth="2"/><path d="M20 21c0-4.418-3.582-8-8-8s-8 3.582-8 8" strokeWidth="2"/></svg>) },
-    { to: ROUTES.resultados, label: "Resultados", icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18" strokeWidth="2"/><rect x="7" y="9" width="3" height="9" strokeWidth="2"/><rect x="12" y="5" width="3" height="13" strokeWidth="2"/><rect x="17" y="8" width="3" height="10" strokeWidth="2"/></svg>)},
+    { to: ROUTES.usuarios,   label: "Usuarios",   icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>)},
+    { to: ROUTES.videojuego, label: "Videojuego", icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="6" width="20" height="12" rx="2" ry="2"/><path d="M7 12h4M9 10v4"/><circle cx="17" cy="11" r="1"/><circle cx="19" cy="13" r="1"/></svg>)},
+    { to: ROUTES.alumnos,    label: "Alumnos",    icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m22 7-10-5L2 7l10 5 10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>)},
+    { to: ROUTES.perfil,     label: "Perfil",     icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M20 21c0-4.418-3.582-8-8-8s-8 3.582-8 8"/></svg>) },
+    { to: ROUTES.resultados, label: "Resultados", icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><rect x="7" y="9" width="3" height="9"/><rect x="12" y="5" width="3" height="13"/><rect x="17" y="8" width="3" height="10"/></svg>)},
   ]), []);
 
   const role = getRoleFromToken();
   const allowed = role ? ALLOWED_ROUTES[role] : [];
-  const navItems = useMemo(() => (role === "admin" ? baseNav : baseNav.filter(i => allowed.includes(i.to))), [role, allowed, baseNav]);
+
+  const navItems = useMemo(() => {
+    if (role === "admin") return baseNav;
+    return baseNav.filter((i) => allowed.includes(i.to));
+  }, [role, allowed, baseNav]);
 
   const linkBase = "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400";
   const linkInactive = "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white";
   const linkActive = "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow";
 
-  function onRequestLogout() { setShowLogout(true); }
-  async function confirmLogout() {
-    try {
-      setClosing(true);
-      logout();
-      nav(ROUTES.login, { replace: true });
-    } finally {
-      setClosing(false);
-      setShowLogout(false);
-    }
+  function doLogout() {
+    logout();
+    nav(ROUTES.login, { replace: true });
   }
 
   return (
@@ -108,37 +109,37 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center gap-3">
-              <ThemeToggleButton />
+              <DarkModeToggle />
               <button
-                onClick={onRequestLogout}
+                onClick={() => setConfirmLogoutOpen(true)}
                 className="rounded-xl border border-slate-600 bg-slate-800/60 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-700"
                 title="Cerrar sesión"
               >
                 Cerrar sesión
               </button>
               <AvatarMini />
-              <button onClick={() => setOpen(o => !o)} className="md:hidden rounded-xl border px-3 py-2 text-sm">
+              <button onClick={() => setOpenMobile(o => !o)} className="md:hidden rounded-xl border px-3 py-2 text-sm">
                 Menú
               </button>
             </div>
           </div>
 
           {/* Nav móvil */}
-          {open && (
+          {openMobile && (
             <nav className="md:hidden pb-3">
               <div className="grid gap-2">
                 {navItems.map(i => (
                   <NavLink
                     key={i.to}
                     to={i.to}
-                    onClick={() => setOpen(false)}
+                    onClick={() => setOpenMobile(false)}
                     className={({isActive}) => [linkBase, "w-full", isActive?linkActive:linkInactive].join(" ")}
                   >
                     {i.icon}{i.label}
                   </NavLink>
                 ))}
                 <button
-                  onClick={() => { setOpen(false); onRequestLogout(); }}
+                  onClick={() => { setOpenMobile(false); setConfirmLogoutOpen(true); }}
                   className="w-full text-left rounded-xl border border-slate-600 bg-slate-800/60 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-700"
                 >
                   Cerrar sesión
@@ -154,12 +155,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         © {new Date().getFullYear()} Proyecto TDAH — UNIVALLE
       </footer>
 
-      {/* Confirmación de cierre de sesión */}
       <ConfirmLogoutDialog
-        open={showLogout}
-        onClose={() => setShowLogout(false)}
-        onConfirm={confirmLogout}
-        loading={closing}
+        open={confirmLogoutOpen}
+        onClose={() => setConfirmLogoutOpen(false)}
+        onConfirm={() => { setConfirmLogoutOpen(false); doLogout(); }}
       />
     </div>
   );

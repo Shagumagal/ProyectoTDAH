@@ -1,11 +1,10 @@
-// src/app/AppRoutes.tsx
 import { Suspense, lazy, type JSX } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import AppShell from "./layout/AppShell";
 import { ROUTES } from "../lib/routes";
 import TwoFactorPage from "../features/auth/TwoFactorPage";
 import ProfilePage from "../features/auth/ProfilePage";
-import { AppThemeProvider } from "../theme/ThemeProvider"; // ⬅️ provider de tema
+import { AppThemeProvider } from "../theme/ThemeProvider";
 
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -21,6 +20,7 @@ const ResetPasswordPage  = lazy(() => import("../features/auth/ResetPasswordPage
 
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
+/* helpers */
 function parseJwt(token: string): any {
   try {
     const base64 = token.split(".")[1];
@@ -28,7 +28,6 @@ function parseJwt(token: string): any {
     return JSON.parse(decodeURIComponent(escape(json)));
   } catch { return null; }
 }
-
 function getRoleFromToken(): Role | null {
   const t = localStorage.getItem("auth_token");
   if (!t) return null;
@@ -36,47 +35,38 @@ function getRoleFromToken(): Role | null {
   const r = (p?.role || "").toLowerCase();
   return ["admin","profesor","psicologo","estudiante"].includes(r) ? (r as Role) : null;
 }
-
 const HOME_BY_ROLE: Record<Role, string> = {
   admin: ROUTES.usuarios,
   profesor: ROUTES.alumnos,
-  psicologo: ROUTES.resultados,
+  psicologo: ROUTES.resultados, // mantiene Resultados como home del psicólogo
   estudiante: ROUTES.videojuego,
 };
 function homeByRole(role: Role | null) { return role ? HOME_BY_ROLE[role] : ROUTES.login; }
 
-/* ---------- Rutas protegidas ---------- */
+/* guards */
 function ProtectedRoute({ allow, children }: { allow: Role[]; children: JSX.Element }) {
   const token = localStorage.getItem("auth_token");
   const role  = getRoleFromToken();
   const location = useLocation();
 
-  if (!token) {
-    return <Navigate to={ROUTES.login} replace state={{ from: location }} />;
-  }
-  if (!role || !allow.includes(role)) {
-    return <Navigate to={homeByRole(role)} replace />;
-  }
+  if (!token) return <Navigate to={ROUTES.login} replace state={{ from: location }} />;
+  if (!role || !allow.includes(role)) return <Navigate to={homeByRole(role)} replace />;
   return <AppShell>{children}</AppShell>;
 }
-
-/* ---------- Rutas públicas solo si NO hay sesión ---------- */
 function PublicOnlyRoute({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem("auth_token");
   const role  = getRoleFromToken();
   const location = useLocation();
 
-  if (token) {
-    return <Navigate to={homeByRole(role)} replace state={{ from: location }} />;
-  }
+  if (token) return <Navigate to={homeByRole(role)} replace state={{ from: location }} />;
   return children;
 }
-
 function AppHomeRedirect() {
   const role = getRoleFromToken();
   return <Navigate to={homeByRole(role)} replace />;
 }
 
+/* routes */
 export default function AppRoutes() {
   return (
     <AppThemeProvider>
@@ -84,12 +74,12 @@ export default function AppRoutes() {
         <BrowserRouter>
           <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Cargando…</div>}>
             <Routes>
-              {/* Público (bloqueado si ya hay sesión) */}
-              <Route path="/"                element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-              <Route path={ROUTES.login}     element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-              <Route path={ROUTES.authCode}  element={<PublicOnlyRoute><TwoFactorPage /></PublicOnlyRoute>} />
+              {/* Público */}
+              <Route path="/"               element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+              <Route path={ROUTES.login}    element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+              <Route path={ROUTES.authCode} element={<PublicOnlyRoute><TwoFactorPage /></PublicOnlyRoute>} />
 
-              {/* Protegido + control por rol */}
+              {/* Protegido */}
               <Route
                 path={ROUTES.usuarios}
                 element={
@@ -98,6 +88,8 @@ export default function AppRoutes() {
                   </ProtectedRoute>
                 }
               />
+
+              {/* ⬇️ Alumnos: solo admin y profesor (psicólogo fuera) */}
               <Route
                 path={ROUTES.alumnos}
                 element={
@@ -136,7 +128,7 @@ export default function AppRoutes() {
                 }
               />
 
-              {/* Redirecciones según rol */}
+              {/* Redirecciones */}
               <Route path={ROUTES.app} element={<AppHomeRedirect />} />
               <Route path="*"          element={<AppHomeRedirect />} />
             </Routes>
