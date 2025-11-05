@@ -1,8 +1,10 @@
 // src/app/layout/AppShell.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ROUTES } from "../../lib/routes";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../../features/auth/services/auth.services";
+import ConfirmLogoutDialog from "../../features/auth/components/ConfirmLogoutDialog";
+import { useThemeMode } from "../../theme/ThemeProvider";
 
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
@@ -17,7 +19,8 @@ function getRoleFromToken(): Role | null {
   const t = localStorage.getItem("auth_token");
   if (!t) return null;
   const p = parseJwt(t);
-  return p?.role ?? null;
+  const r = (p?.role || "").toLowerCase();
+  return (["admin","profesor","psicologo","estudiante"] as Role[]).includes(r as Role) ? (r as Role) : null;
 }
 
 const ALLOWED_ROUTES: Record<Role, string[]> = {
@@ -27,20 +30,14 @@ const ALLOWED_ROUTES: Record<Role, string[]> = {
   estudiante:[ROUTES.videojuego,                ROUTES.perfil,  ROUTES.resultados],
 };
 
-function DarkModeToggle() {
-  const [isDark, setIsDark] = useState(true);
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark);
-    localStorage.setItem("tdah_dark", String(isDark));
-  }, [isDark]);
-  useEffect(() => {
-    const stored = localStorage.getItem("tdah_dark");
-    if (stored) setIsDark(stored === "true");
-  }, []);
+function ThemeToggleButton() {
+  const { mode, toggle } = useThemeMode();
+  const isDark = mode === "dark";
   return (
     <button
-      onClick={() => setIsDark(d => !d)}
+      onClick={toggle}
       className="inline-flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700"
+      title={isDark ? "Cambiar a claro" : "Cambiar a oscuro"}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" strokeWidth="2" />
@@ -56,6 +53,8 @@ function AvatarMini() {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [showLogout, setShowLogout] = useState(false);
+  const [closing, setClosing] = useState(false);
   const nav = useNavigate();
 
   const baseNav = useMemo(() => ([
@@ -68,19 +67,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const role = getRoleFromToken();
   const allowed = role ? ALLOWED_ROUTES[role] : [];
-
-  const navItems = useMemo(() => {
-    if (role === "admin") return baseNav;
-    return baseNav.filter((i) => allowed.includes(i.to));
-  }, [role, allowed, baseNav]);
+  const navItems = useMemo(() => (role === "admin" ? baseNav : baseNav.filter(i => allowed.includes(i.to))), [role, allowed, baseNav]);
 
   const linkBase = "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400";
   const linkInactive = "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white";
   const linkActive = "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow";
 
-  function handleLogout() {
-    logout();
-    nav(ROUTES.login, { replace: true });
+  function onRequestLogout() { setShowLogout(true); }
+  async function confirmLogout() {
+    try {
+      setClosing(true);
+      logout();
+      nav(ROUTES.login, { replace: true });
+    } finally {
+      setClosing(false);
+      setShowLogout(false);
+    }
   }
 
   return (
@@ -106,9 +108,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center gap-3">
-              <DarkModeToggle />
+              <ThemeToggleButton />
               <button
-                onClick={handleLogout}
+                onClick={onRequestLogout}
                 className="rounded-xl border border-slate-600 bg-slate-800/60 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-700"
                 title="Cerrar sesión"
               >
@@ -136,7 +138,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   </NavLink>
                 ))}
                 <button
-                  onClick={() => { setOpen(false); handleLogout(); }}
+                  onClick={() => { setOpen(false); onRequestLogout(); }}
                   className="w-full text-left rounded-xl border border-slate-600 bg-slate-800/60 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-700"
                 >
                   Cerrar sesión
@@ -151,6 +153,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <footer className="mx-auto max-w-7xl px-4 sm:px-6 pb-8 text-center text-slate-500 dark:text-slate-400">
         © {new Date().getFullYear()} Proyecto TDAH — UNIVALLE
       </footer>
+
+      {/* Confirmación de cierre de sesión */}
+      <ConfirmLogoutDialog
+        open={showLogout}
+        onClose={() => setShowLogout(false)}
+        onConfirm={confirmLogout}
+        loading={closing}
+      />
     </div>
   );
 }
