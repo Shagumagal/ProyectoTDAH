@@ -1,7 +1,12 @@
 import * as React from "react";
 import {
-  Dialog, DialogTitle, DialogContent, DialogContentText,
-  DialogActions, Button, CircularProgress
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
+  CircularProgress,
 } from "@mui/material";
 
 type Props = {
@@ -15,6 +20,8 @@ type Props = {
   onConfirm: () => void | Promise<void>;
   /** color del botón de confirmar */
   intent?: "default" | "danger" | "success";
+  /** contenido adicional (p.ej., lista de cambios) */
+  children?: React.ReactNode;
 };
 
 export default function ConfirmDialog({
@@ -27,9 +34,12 @@ export default function ConfirmDialog({
   onClose,
   onConfirm,
   intent = "default",
+  children,
 }: Props) {
   const color: "primary" | "error" | "success" =
     intent === "danger" ? "error" : intent === "success" ? "success" : "primary";
+
+  const hasContent = Boolean(description) || Boolean(children);
 
   return (
     <Dialog
@@ -42,15 +52,22 @@ export default function ConfirmDialog({
       disableEscapeKeyDown={loading}
     >
       <DialogTitle id="confirm-title">{title}</DialogTitle>
-      {description && (
+
+      {hasContent && (
         <DialogContent>
-          <DialogContentText id="confirm-desc">
-            {description}
-          </DialogContentText>
+          {description && (
+            <DialogContentText id="confirm-desc" sx={{ whiteSpace: "pre-line", mb: children ? 1 : 0 }}>
+              {description}
+            </DialogContentText>
+          )}
+          {children}
         </DialogContent>
       )}
+
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={loading}> {cancelText} </Button>
+        <Button onClick={onClose} disabled={loading}>
+          {cancelText}
+        </Button>
         <Button
           onClick={onConfirm}
           color={color}

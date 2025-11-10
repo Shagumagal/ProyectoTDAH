@@ -8,6 +8,7 @@ import { AppThemeProvider } from "../theme/ThemeProvider";
 
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { esES as pickersEsES } from "@mui/x-date-pickers/locales";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 dayjs.locale("es");
@@ -38,7 +39,7 @@ function getRoleFromToken(): Role | null {
 const HOME_BY_ROLE: Record<Role, string> = {
   admin: ROUTES.usuarios,
   profesor: ROUTES.alumnos,
-  psicologo: ROUTES.resultados, // mantiene Resultados como home del psicólogo
+  psicologo: ROUTES.resultados,
   estudiante: ROUTES.videojuego,
 };
 function homeByRole(role: Role | null) { return role ? HOME_BY_ROLE[role] : ROUTES.login; }
@@ -70,7 +71,11 @@ function AppHomeRedirect() {
 export default function AppRoutes() {
   return (
     <AppThemeProvider>
-      <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <LocalizationProvider
+        dateAdapter={AdapterDayjs}
+        adapterLocale="es"
+        localeText={pickersEsES.components.MuiLocalizationProvider.defaultProps.localeText}
+      >
         <BrowserRouter>
           <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Cargando…</div>}>
             <Routes>
@@ -89,7 +94,7 @@ export default function AppRoutes() {
                 }
               />
 
-              {/* ⬇️ Alumnos: solo admin y profesor (psicólogo fuera) */}
+              {/* Alumnos: admin y profesor (psicólogo fuera) */}
               <Route
                 path={ROUTES.alumnos}
                 element={
