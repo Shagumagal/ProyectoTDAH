@@ -3,6 +3,7 @@ import { ROUTES } from "../../lib/routes";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../../features/auth/services/auth.services";
 import ConfirmLogoutDialog from "../../features/auth/components/ConfirmLogoutDialog";
+import { GAME_URL } from "../../features/game/gameUrl";
 
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
@@ -13,6 +14,7 @@ function parseJwt(token: string): any {
     return JSON.parse(decodeURIComponent(escape(json)));
   } catch { return null; }
 }
+
 function getRoleFromToken(): Role | null {
   const t = localStorage.getItem("auth_token");
   if (!t) return null;
@@ -102,9 +104,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {/* Nav desktop */}
             <nav className="hidden md:flex items-center gap-2">
               {navItems.map(i => (
-                <NavLink key={i.to} to={i.to} className={({isActive}) => [linkBase, isActive?linkActive:linkInactive].join(" ")}>
-                  {i.icon}{i.label}
-                </NavLink>
+                i.to === ROUTES.videojuego ? (
+                  // 🔗 "Videojuego" abre GAME_URL en nueva pestaña
+                  <a
+                    key={i.to}
+                    href={GAME_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={[linkBase, linkInactive].join(" ")}
+                  >
+                    {i.icon}{i.label}
+                  </a>
+                ) : (
+                  <NavLink
+                    key={i.to}
+                    to={i.to}
+                    className={({isActive}) => [linkBase, isActive ? linkActive : linkInactive].join(" ")}
+                  >
+                    {i.icon}{i.label}
+                  </NavLink>
+                )
               ))}
             </nav>
 
@@ -129,14 +148,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="md:hidden pb-3">
               <div className="grid gap-2">
                 {navItems.map(i => (
-                  <NavLink
-                    key={i.to}
-                    to={i.to}
-                    onClick={() => setOpenMobile(false)}
-                    className={({isActive}) => [linkBase, "w-full", isActive?linkActive:linkInactive].join(" ")}
-                  >
-                    {i.icon}{i.label}
-                  </NavLink>
+                  i.to === ROUTES.videojuego ? (
+                    <a
+                      key={i.to}
+                      href={GAME_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setOpenMobile(false)}
+                      className={[linkBase, "w-full", linkInactive].join(" ")}
+                    >
+                      {i.icon}{i.label}
+                    </a>
+                  ) : (
+                    <NavLink
+                      key={i.to}
+                      to={i.to}
+                      onClick={() => setOpenMobile(false)}
+                      className={({isActive}) => [linkBase, "w-full", isActive ? linkActive : linkInactive].join(" ")}
+                    >
+                      {i.icon}{i.label}
+                    </NavLink>
+                  )
                 ))}
                 <button
                   onClick={() => { setOpenMobile(false); setConfirmLogoutOpen(true); }}

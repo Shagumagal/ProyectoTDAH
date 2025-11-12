@@ -12,5 +12,5 @@ pool.on("error", (err) => {
   console.error("PG pool error:", err);
   process.exit(1);
 });
-
-module.exports = { pool };
+const query = (text, params) => pool.query(text, params);
+module.exports = { pool, query };

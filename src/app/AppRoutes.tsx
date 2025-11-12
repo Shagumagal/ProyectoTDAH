@@ -11,6 +11,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { esES as pickersEsES } from "@mui/x-date-pickers/locales";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
+
 dayjs.locale("es");
 
 const UsersPage          = lazy(() => import("../features/users/pages/UsersPage"));
@@ -18,7 +19,13 @@ const LoginPage          = lazy(() => import("../features/auth/LoginPage"));
 const StudentsPage       = lazy(() => import("../features/students/pages/StudentsPage"));
 const ForgotPasswordPage = lazy(() => import("../features/auth/ForgotPasswordPage"));
 const ResetPasswordPage  = lazy(() => import("../features/auth/ResetPasswordPage"));
+// 👇 así, con ../ y en minúsculas
+const ResultsPage = lazy(() => import("../features/results/pages/ResultsPage"));
 
+
+
+
+const PlayGamePage = lazy(() => import("../features/game/PlayGamePage"));
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
 /* helpers */
@@ -93,6 +100,14 @@ export default function AppRoutes() {
                   </ProtectedRoute>
                 }
               />
+<Route
+  path={ROUTES.resultados}
+  element={
+    <ProtectedRoute allow={["admin","profesor","psicologo"]}>
+      <ResultsPage />
+    </ProtectedRoute>
+  }
+/>
 
               {/* Alumnos: admin y profesor (psicólogo fuera) */}
               <Route
@@ -112,7 +127,7 @@ export default function AppRoutes() {
                 path={ROUTES.videojuego}
                 element={
                   <ProtectedRoute allow={["admin","profesor","psicologo","estudiante"]}>
-                    <div className="p-6">Videojuego (pendiente)</div>
+                    <PlayGamePage />
                   </ProtectedRoute>
                 }
               />

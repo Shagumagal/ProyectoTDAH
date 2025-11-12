@@ -4,12 +4,12 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
-
+const resultadosRouter = require("./routes/resultados");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const passwordRoutes = require("./routes/password");
 const meRoutes = require("./routes/me");          // ← importa aquí
-
+const gameRoutes = require("./routes/game");
 const app = express();
 
 // --- CORS (antes de cualquier ruta) ---
@@ -42,7 +42,8 @@ app.use("/auth", passwordRoutes);  // /auth/forgot-password, /auth/reset-passwor
 app.use("/auth", authRoutes);      // login, 2FA, etc.
 app.use("/me",   meRoutes);        // ← ahora después de CORS y json
 app.use("/users", userRoutes);
-
+app.use("/game", gameRoutes);
+app.use("/resultados", resultadosRouter);
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`API escuchando en http://localhost:${PORT}`);
