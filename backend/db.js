@@ -1,3 +1,4 @@
+// backend/db.js
 const { Pool } = require("pg");
 
 const isLocal =
@@ -5,14 +6,21 @@ const isLocal =
   process.env.PGHOST === "localhost" ||
   process.env.PGHOST === "127.0.0.1";
 
+console.log("PG config:", {
+  host: process.env.PGHOST,
+  port: process.env.PGPORT,
+  database: process.env.PGDATABASE,
+  user: process.env.PGUSER,
+});
+
 const pool = new Pool({
   host: process.env.PGHOST,
   port: Number(process.env.PGPORT || 5432),
   database: process.env.PGDATABASE,
   user: process.env.PGUSER,
   password: process.env.PGPASSWORD,
-  // Supabase requiere SSL; lo desactivamos solo en local
-  ssl: isLocal ? false : { rejectUnauthorized: false }
+  // Supabase pooler necesita SSL
+  ssl: isLocal ? false : { rejectUnauthorized: false },
 });
 
 pool.on("error", (err) => {
