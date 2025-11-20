@@ -1,8 +1,5 @@
 // backend/mailer.js
 const nodemailer = require("nodemailer");
-const fetch = require("node-fetch"); // <─ necesitas instalarlo en el backend
-
-let transportPromise; // cachea el transport
 
 // ============================
 // 1) Config: Resend vs SMTP
@@ -13,6 +10,8 @@ const USE_RESEND =
 /* ============================
    SMTP / Ethereal (para LOCAL)
    ============================ */
+let transportPromise; // cachea el transport
+
 function makeSmtpTransport() {
   const host = process.env.SMTP_HOST;
   if (!host) throw new Error("SMTP_HOST missing");
@@ -43,7 +42,7 @@ async function buildTransport() {
     return transportPromise;
   }
 
-  // SMTP real (solo para local / donde no esté bloqueado)
+  // SMTP real (solo para LOCAL / donde no esté bloqueado)
   transportPromise = Promise.resolve(makeSmtpTransport());
   return transportPromise;
 }
@@ -54,10 +53,11 @@ async function buildTransport() {
 async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
   const toAddress = process.env.FORCE_MAIL_TO || to;
 
+  // IMPORTANTE: para Resend el from debe ser aceptado
   const from =
-    process.env.MAIL_FROM ||
-    process.env.SMTP_FROM ||
-    '"Plataforma TDAH" <no-reply@tdah.local>';
+    process.env.RESEND_FROM ||        // para producción con Resend
+    process.env.SMTP_FROM ||          // para SMTP local
+    '"Plataforma TDAH" <onboarding@resend.dev>'; // fallback seguro
 
   const subject = "Tu código de verificación";
   const text = `Tu código es ${code}. Expira en ${minutes} minutos.`;
@@ -66,6 +66,7 @@ async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
 
   // 1) PRODUCCIÓN en Render → usamos RESEND (HTTP, no SMTP)
   if (USE_RESEND) {
+    // En Node 18+ fetch ya existe globalmente, NO necesitamos node-fetch
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -84,13 +85,14 @@ async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
     const body = await resp.text();
     if (!resp.ok) {
       console.error("Resend error:", resp.status, body);
-      throw new Error("RESEND_FAILED");
+      // No lanzamos para no romper el login, solo log
+      return;
     }
     console.log("Resend OK:", body);
     return;
   }
 
-  // 2) LOCAL (dev) → seguimos con Nodemailer
+  // 2) LOCAL (dev) → seguimos con Nodemailer (SMTP / Ethereal)
   const transport = await buildTransport();
   const info = await transport.sendMail({ from, to: toAddress, subject, text, html });
 
