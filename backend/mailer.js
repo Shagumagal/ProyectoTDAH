@@ -1,21 +1,16 @@
 // backend/mailer.js
 const nodemailer = require("nodemailer");
-const { Resend } = require("resend");
 
 // ============================
-// Config: Resend vs SMTP
+// 1) Config: Resend vs SMTP
 // ============================
-const isProd = process.env.NODE_ENV === "production";
-const hasResendKey = !!process.env.RESEND_API_KEY;
-const USE_RESEND = isProd && hasResendKey;
+const USE_RESEND =
+  !!process.env.RESEND_API_KEY && process.env.NODE_ENV === "production";
 
-let resendClient = null;
-if (hasResendKey) {
-  resendClient = new Resend(process.env.RESEND_API_KEY);
-}
-
-// ============ SMTP (solo para LOCAL / dev) ============
-let transportPromise; // cacheado
+/* ============================
+   SMTP / Ethereal (para LOCAL)
+   ============================ */
+let transportPromise; // cachea el transport
 
 function makeSmtpTransport() {
   const host = process.env.SMTP_HOST;
@@ -35,8 +30,8 @@ function makeSmtpTransport() {
 async function buildTransport() {
   if (transportPromise) return transportPromise;
 
+  // DEV: Ethereal si está habilitado
   if (process.env.NODE_ENV !== "production" && process.env.ETHEREAL === "true") {
-    // Ethereal solo para desarrollo local
     transportPromise = nodemailer.createTestAccount().then((test) =>
       nodemailer.createTransport({
         host: "smtp.ethereal.email",
@@ -47,51 +42,56 @@ async function buildTransport() {
     return transportPromise;
   }
 
+  // SMTP real (solo para LOCAL / donde no esté bloqueado)
   transportPromise = Promise.resolve(makeSmtpTransport());
   return transportPromise;
 }
 
-// ============ Envío del mail 2FA ============
+/* ============================
+   Envío del mail 2FA
+   ============================ */
 async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
   const toAddress = process.env.FORCE_MAIL_TO || to;
+
+  // IMPORTANTE: para Resend el from debe ser aceptado
+  const from =
+    process.env.RESEND_FROM ||        // para producción con Resend
+    process.env.SMTP_FROM ||          // para SMTP local
+    '"Plataforma TDAH" <onboarding@resend.dev>'; // fallback seguro
 
   const subject = "Tu código de verificación";
   const text = `Tu código es ${code}. Expira en ${minutes} minutos.`;
   const html = `<p>Tu código es <b style="font-size:18px;letter-spacing:2px">${code}</b>.</p>
                 <p>Expira en ${minutes} minutos.</p>`;
 
-  // FROM:
-  //  - en Resend debe ser un remitente válido (onboarding@resend.dev sirve para pruebas)
-  const from =
-    process.env.RESEND_FROM ||
-    process.env.SMTP_FROM ||
-    '"Plataforma TDAH" <onboarding@resend.dev>';
-
-  // 1) PRODUCCIÓN: usar Resend
-  if (USE_RESEND && resendClient) {
-    try {
-      const { data, error } = await resendClient.emails.send({
+  // 1) PRODUCCIÓN en Render → usamos RESEND (HTTP, no SMTP)
+  if (USE_RESEND) {
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
         from,
-        to: [toAddress],
+        to: toAddress,
         subject,
-        html,
         text,
-      });
+        html,
+      }),
+    });
 
-      if (error) {
-        console.error("Resend error:", error);
-      } else {
-        console.log("Resend OK, id:", data?.id);
-      }
-      return;
-    } catch (err) {
-      console.error("Resend exception:", err);
-      // No lanzamos error: el flujo de 2FA sigue, solo que no llega el mail
+    const body = await resp.text();
+    if (!resp.ok) {
+      console.error("Resend error:", resp.status, body);
+      // No lanzamos para no romper el login
       return;
     }
+    console.log("Resend OK:", body);
+    return;
   }
 
-  // 2) DESARROLLO LOCAL: Nodemailer (SMTP / Ethereal)
+  // 2) LOCAL (dev) → Nodemailer (SMTP / Ethereal)
   const transport = await buildTransport();
   const info = await transport.sendMail({ from, to: toAddress, subject, text, html });
 
@@ -103,7 +103,6 @@ async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
     "response:",
     info.response
   );
-
   if (process.env.ETHEREAL === "true") {
     console.log("Preview URL:", nodemailer.getTestMessageUrl(info));
   }
