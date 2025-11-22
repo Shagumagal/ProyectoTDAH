@@ -14,11 +14,11 @@ import "dayjs/locale/es";
 
 dayjs.locale("es");
 
-const UsersPage          = lazy(() => import("../features/users/pages/UsersPage"));
-const LoginPage          = lazy(() => import("../features/auth/LoginPage"));
-const StudentsPage       = lazy(() => import("../features/students/pages/StudentsPage"));
+const UsersPage = lazy(() => import("../features/users/pages/UsersPage"));
+const LoginPage = lazy(() => import("../features/auth/LoginPage"));
+const StudentsPage = lazy(() => import("../features/students/pages/StudentsPage"));
 const ForgotPasswordPage = lazy(() => import("../features/auth/ForgotPasswordPage"));
-const ResetPasswordPage  = lazy(() => import("../features/auth/ResetPasswordPage"));
+const ResetPasswordPage = lazy(() => import("../features/auth/ResetPasswordPage"));
 // 👇 así, con ../ y en minúsculas
 const ResultsPage = lazy(() => import("../features/results/pages/ResultsPage"));
 
@@ -26,6 +26,7 @@ const ResultsPage = lazy(() => import("../features/results/pages/ResultsPage"));
 
 
 const PlayGamePage = lazy(() => import("../features/game/PlayGamePage"));
+const CaptchaPage = lazy(() => import("../features/captcha/CaptchaPage"));
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
 /* helpers */
@@ -41,7 +42,7 @@ function getRoleFromToken(): Role | null {
   if (!t) return null;
   const p = parseJwt(t);
   const r = (p?.role || "").toLowerCase();
-  return ["admin","profesor","psicologo","estudiante"].includes(r) ? (r as Role) : null;
+  return ["admin", "profesor", "psicologo", "estudiante"].includes(r) ? (r as Role) : null;
 }
 const HOME_BY_ROLE: Record<Role, string> = {
   admin: ROUTES.usuarios,
@@ -54,16 +55,25 @@ function homeByRole(role: Role | null) { return role ? HOME_BY_ROLE[role] : ROUT
 /* guards */
 function ProtectedRoute({ allow, children }: { allow: Role[]; children: JSX.Element }) {
   const token = localStorage.getItem("auth_token");
-  const role  = getRoleFromToken();
+  const role = getRoleFromToken();
   const location = useLocation();
 
   if (!token) return <Navigate to={ROUTES.login} replace state={{ from: location }} />;
   if (!role || !allow.includes(role)) return <Navigate to={homeByRole(role)} replace />;
+
+  // Interstitial Captcha Check for Students
+  if (role === "estudiante") {
+    const captchaSolved = sessionStorage.getItem("captcha_solved");
+    if (!captchaSolved && location.pathname !== ROUTES.captcha) {
+      return <Navigate to={ROUTES.captcha} replace />;
+    }
+  }
+
   return <AppShell>{children}</AppShell>;
 }
 function PublicOnlyRoute({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem("auth_token");
-  const role  = getRoleFromToken();
+  const role = getRoleFromToken();
   const location = useLocation();
 
   if (token) return <Navigate to={homeByRole(role)} replace state={{ from: location }} />;
@@ -74,6 +84,8 @@ function AppHomeRedirect() {
   return <Navigate to={homeByRole(role)} replace />;
 }
 
+import { NotificationProvider } from "../context/NotificationContext";
+
 /* routes */
 export default function AppRoutes() {
   return (
@@ -83,77 +95,88 @@ export default function AppRoutes() {
         adapterLocale="es"
         localeText={pickersEsES.components.MuiLocalizationProvider.defaultProps.localeText}
       >
-        <BrowserRouter>
-          <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Cargando…</div>}>
-            <Routes>
-              {/* Público */}
-              <Route path="/"               element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-              <Route path={ROUTES.login}    element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-              <Route path={ROUTES.authCode} element={<PublicOnlyRoute><TwoFactorPage /></PublicOnlyRoute>} />
+        <NotificationProvider>
+          <BrowserRouter>
+            <Suspense fallback={<div className="p-6 text-slate-600 dark:text-slate-300">Cargando…</div>}>
+              <Routes>
+                {/* Público */}
+                <Route path="/" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+                <Route path={ROUTES.login} element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+                <Route path={ROUTES.authCode} element={<PublicOnlyRoute><TwoFactorPage /></PublicOnlyRoute>} />
 
-              {/* Protegido */}
-              <Route
-                path={ROUTES.usuarios}
-                element={
-                  <ProtectedRoute allow={["admin"]}>
-                    <UsersPage />
-                  </ProtectedRoute>
-                }
-              />
-<Route
-  path={ROUTES.resultados}
-  element={
-    <ProtectedRoute allow={["admin","profesor","psicologo"]}>
-      <ResultsPage />
-    </ProtectedRoute>
-  }
-/>
+                {/* Protegido */}
+                <Route
+                  path={ROUTES.usuarios}
+                  element={
+                    <ProtectedRoute allow={["admin"]}>
+                      <UsersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.resultados}
+                  element={
+                    <ProtectedRoute allow={["admin", "profesor", "psicologo"]}>
+                      <ResultsPage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Alumnos: admin y profesor (psicólogo fuera) */}
-              <Route
-                path={ROUTES.alumnos}
-                element={
-                  <ProtectedRoute allow={["admin","profesor"]}>
-                    <StudentsPage />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Alumnos: admin y profesor (psicólogo fuera) */}
+                <Route
+                  path={ROUTES.alumnos}
+                  element={
+                    <ProtectedRoute allow={["admin", "profesor"]}>
+                      <StudentsPage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Recuperación */}
-              <Route path={ROUTES.forgot} element={<ForgotPasswordPage />} />
-              <Route path={ROUTES.reset}  element={<ResetPasswordPage  />} />
+                {/* Recuperación */}
+                <Route path={ROUTES.forgot} element={<ForgotPasswordPage />} />
+                <Route path={ROUTES.reset} element={<ResetPasswordPage />} />
 
-              <Route
-                path={ROUTES.videojuego}
-                element={
-                  <ProtectedRoute allow={["admin","profesor","psicologo","estudiante"]}>
-                    <PlayGamePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path={ROUTES.resultados}
-                element={
-                  <ProtectedRoute allow={["admin","profesor","psicologo"]}>
-                    <div className="p-6">Resultados (pendiente)</div>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path={ROUTES.perfil}
-                element={
-                  <ProtectedRoute allow={["admin","profesor","psicologo","estudiante"]}>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                }
-              />
+                <Route
+                  path={ROUTES.videojuego}
+                  element={
+                    <ProtectedRoute allow={["admin", "profesor", "psicologo", "estudiante"]}>
+                      <PlayGamePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.resultados}
+                  element={
+                    <ProtectedRoute allow={["admin", "profesor", "psicologo"]}>
+                      <div className="p-6">Resultados (pendiente)</div>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.perfil}
+                  element={
+                    <ProtectedRoute allow={["admin", "profesor", "psicologo", "estudiante"]}>
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Redirecciones */}
-              <Route path={ROUTES.app} element={<AppHomeRedirect />} />
-              <Route path="*"          element={<AppHomeRedirect />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
+                <Route
+                  path={ROUTES.captcha}
+                  element={
+                    <ProtectedRoute allow={["estudiante"]}>
+                      <CaptchaPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Redirecciones */}
+                <Route path={ROUTES.app} element={<AppHomeRedirect />} />
+                <Route path="*" element={<AppHomeRedirect />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </NotificationProvider>
       </LocalizationProvider>
     </AppThemeProvider>
   );

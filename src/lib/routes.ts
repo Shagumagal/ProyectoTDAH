@@ -1,13 +1,14 @@
 export const ROUTES = {
-login: "/login",
-app: "/app",
-usuarios: "/app/usuarios",
-videojuego: "/app/videojuego",
-resultados: "/app/resultados",
- resultadoById: "/app/resultados/:id",
- authCode: "/auth/code",
- alumnos: "/app/alumnos",
- forgot: "/auth/forgot",
+  login: "/login",
+  app: "/app",
+  usuarios: "/app/usuarios",
+  videojuego: "/app/videojuego",
+  resultados: "/app/resultados",
+  resultadoById: "/app/resultados/:id",
+  authCode: "/auth/code",
+  alumnos: "/app/alumnos",
+  forgot: "/auth/forgot",
   reset: "/auth/reset",
-    perfil: "/app/perfil"
+  perfil: "/app/perfil",
+  captcha: "/app/captcha"
 } as const;

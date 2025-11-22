@@ -15,7 +15,10 @@ const ROLE_ESTUDIANTE: RoleDb = "estudiante";
 
 type DialogState = { mode: "create" | "edit"; user?: Usuario } | null;
 
+import { useNotification } from "../../../context/NotificationContext";
+
 export default function StudentsPage() {
+  const { showNotification } = useNotification();
   const [alumnos, setAlumnos] = useState<Usuario[]>([]);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +53,7 @@ export default function StudentsPage() {
     const term = q.trim().toLowerCase();
     if (!term) return alumnos;
     return alumnos.filter((u) =>
-      [u.nombre||"", u.apellido||"", u.correo||"", u.username||"", u.estado||""]
+      [u.nombre || "", u.apellido || "", u.correo || "", u.username || "", u.estado || ""]
         .join(" ").toLowerCase().includes(term)
     );
   }, [alumnos, q]);
@@ -63,7 +66,7 @@ export default function StudentsPage() {
     username?: string | null;
     password?: string;
     fecha_nacimiento: string;
-    genero?: "masculino"|"femenino"|"no_binario"|"prefiero_no_decir"|null;
+    genero?: "masculino" | "femenino" | "no_binario" | "prefiero_no_decir" | null;
   }) {
     try {
       if (!data.id) {
@@ -77,6 +80,7 @@ export default function StudentsPage() {
           fecha_nacimiento: data.fecha_nacimiento,
           genero: data.genero ?? undefined,
         });
+        showNotification("Alumno creado con éxito", "success");
       } else {
         await updateUser(data.id, {
           nombres: data.nombres,
@@ -87,11 +91,12 @@ export default function StudentsPage() {
           fecha_nacimiento: data.fecha_nacimiento ?? null,
           genero: (data.genero ?? null) as any,
         });
+        showNotification("Alumno actualizado con éxito", "success");
       }
       await refresh();
       setDialog(null);
     } catch (e: any) {
-      alert(e?.message || "Error al guardar alumno");
+      showNotification(e?.message || "Error al guardar alumno", "error");
     }
   }
 
@@ -101,8 +106,13 @@ export default function StudentsPage() {
       if (!u) return;
       await setUserActive(id, u.estado !== "Activo");
       await refresh();
+      const isActiveNow = u.estado !== "Activo"; // estado nuevo
+      showNotification(
+        `Alumno ${isActiveNow ? "activado" : "inactivado"} con éxito`,
+        isActiveNow ? "success" : "warning"
+      );
     } catch (e: any) {
-      alert(e?.message || "No se pudo cambiar el estado");
+      showNotification(e?.message || "No se pudo cambiar el estado", "error");
     }
   }
 
@@ -175,11 +185,10 @@ export default function StudentsPage() {
                       <td className="py-3 pr-4">{u.username ?? <span className="text-slate-400">—</span>}</td>
                       <td className="py-3 pr-4">
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            u.estado === "Activo"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                              : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                          }`}
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${u.estado === "Activo"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                            }`}
                         >
                           {u.estado}
                         </span>
@@ -194,11 +203,10 @@ export default function StudentsPage() {
                           </button>
                           <button
                             onClick={() => toggleEstado(u.id)}
-                            className={`rounded-lg px-3 py-1 ${
-                              u.estado === "Activo"
-                                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            }`}
+                            className={`rounded-lg px-3 py-1 ${u.estado === "Activo"
+                              ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                              }`}
                           >
                             {u.estado === "Activo" ? "Inactivar" : "Activar"}
                           </button>

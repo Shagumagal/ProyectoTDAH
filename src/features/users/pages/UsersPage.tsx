@@ -21,7 +21,10 @@ const ROL_DB_MAP: Record<RolUI, RoleDb> = {
   Admin: "admin",
 };
 
+import { useNotification } from "../../../context/NotificationContext";
+
 export default function UsersPage() {
+  const { showNotification } = useNotification();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +85,7 @@ export default function UsersPage() {
         });
         await refresh();
         setDialog(null);
+        showNotification("Usuario creado con éxito", "success");
         return;
       }
 
@@ -97,8 +101,9 @@ export default function UsersPage() {
 
       await refresh();
       setDialog(null);
+      showNotification("Usuario actualizado con éxito", "success");
     } catch (e: any) {
-      alert(e?.message || "Error al guardar usuario");
+      showNotification(e?.message || "Error al guardar usuario", "error");
     }
   }
 
@@ -109,8 +114,12 @@ export default function UsersPage() {
       const isActiveNow = u.estado === "Activo";
       await setUserActive(id, !isActiveNow);
       await refresh();
+      showNotification(
+        `Usuario ${!isActiveNow ? "activado" : "inactivado"} con éxito`,
+        !isActiveNow ? "success" : "warning"
+      );
     } catch (e: any) {
-      alert(e?.message || "No se pudo cambiar el estado");
+      showNotification(e?.message || "No se pudo cambiar el estado", "error");
     }
   }
 
@@ -128,7 +137,7 @@ export default function UsersPage() {
               onChange={(v) => setQ(v)}              // ✅ wrapper para evitar error de tipos
               className="w-72 sm:w-96"
               placeholder="Buscar por nombre, email…"
-              // ❌ quité onDebouncedChange para evitar TS error (si no lo usas)
+            // ❌ quité onDebouncedChange para evitar TS error (si no lo usas)
             />
             <button
               onClick={() => setDialog({ mode: "create" })}
@@ -192,11 +201,10 @@ export default function UsersPage() {
                       <td className="py-3 pr-4">{u.correo ?? <span className="text-slate-400">—</span>}</td>
                       <td className="py-3 pr-4">
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            u.estado === "Activo"
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${u.estado === "Activo"
                               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                               : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                          }`}
+                            }`}
                         >
                           {u.estado}
                         </span>
@@ -211,11 +219,10 @@ export default function UsersPage() {
                           </button>
                           <button
                             onClick={() => toggleEstado(u.id)}
-                            className={`rounded-lg px-3 py-1 ${
-                              u.estado === "Activo"
+                            className={`rounded-lg px-3 py-1 ${u.estado === "Activo"
                                 ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
                                 : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            }`}
+                              }`}
                           >
                             {u.estado === "Activo" ? "Inactivar" : "Activar"}
                           </button>

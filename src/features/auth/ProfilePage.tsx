@@ -4,17 +4,19 @@ import dayjs, { Dayjs } from "dayjs";
 import { getMe, updateMe, changeMyPassword } from "./services/profile.services";
 import ConfirmDialog from "../../componentes/ConfirmDialog";
 import WhiteDatePicker from "../../componentes/WhiteDatePicker";
+import { useNotification } from "../../context/NotificationContext";
 
 type Gender = "masculino" | "femenino" | "no_binario" | "prefiero_no_decir" | null;
 
 const GENDER_OPTIONS: Array<{ value: Exclude<Gender, null>; label: string }> = [
-  { value: "masculino",        label: "Masculino" },
-  { value: "femenino",         label: "Femenino" },
-  { value: "no_binario",       label: "No binario" },
-  { value: "prefiero_no_decir",label: "Prefiero no decir" },
+  { value: "masculino", label: "Masculino" },
+  { value: "femenino", label: "Femenino" },
+  { value: "no_binario", label: "No binario" },
+  { value: "prefiero_no_decir", label: "Prefiero no decir" },
 ];
 
 export default function ProfilePage() {
+  const { showNotification } = useNotification();
   const [loading, setLoading] = useState(true);
 
   // ---- Datos de perfil ----
@@ -34,16 +36,12 @@ export default function ProfilePage() {
     genero: null as Gender,
   });
 
-  // Mensajes perfil
-  const [okMsgProfile, setOkMsgProfile] = useState<string | null>(null);
-  const [errProfile, setErrProfile] = useState<string | null>(null);
+  // Mensajes perfil (REMOVED)
 
   // ---- Cambio de contraseña ----
   const [curPwd, setCurPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [newPwd2, setNewPwd2] = useState("");
-  const [okMsgPwd, setOkMsgPwd] = useState<string | null>(null);
-  const [errPwd, setErrPwd] = useState<string | null>(null);
 
   // ---- Diálogos de confirmación ----
   const [confirmSaveOpen, setConfirmSaveOpen] = useState(false);
@@ -62,7 +60,7 @@ export default function ProfilePage() {
         // Parseo seguro de fecha
         const d = me.fecha_nacimiento ? dayjs(me.fecha_nacimiento) : null;
         const g: Gender =
-          me.genero && ["masculino","femenino","no_binario","prefiero_no_decir"].includes(String(me.genero))
+          me.genero && ["masculino", "femenino", "no_binario", "prefiero_no_decir"].includes(String(me.genero))
             ? (me.genero as Gender) : null;
 
         setNombres(me.nombres || "");
@@ -81,7 +79,7 @@ export default function ProfilePage() {
           genero: g,
         });
       } catch (e: any) {
-        setErrProfile(e?.message || "No se pudo cargar el perfil");
+        showNotification(e?.message || "No se pudo cargar el perfil", "error");
       } finally {
         setLoading(false);
       }
@@ -101,10 +99,8 @@ export default function ProfilePage() {
   // ======= Guardar perfil (con confirmación) =======
   function requestSaveProfile(e: React.FormEvent) {
     e.preventDefault();
-    setErrProfile(null);
     if (!dirtyProfile) {
-      setOkMsgProfile("No hay cambios para guardar");
-      setTimeout(() => setOkMsgProfile(null), 2000);
+      showNotification("No hay cambios para guardar", "info");
       return;
     }
     setConfirmSaveOpen(true);
@@ -121,16 +117,15 @@ export default function ProfilePage() {
         fecha_nacimiento: dobStr,     // ← enviamos string YYYY-MM-DD o null
         genero: genero ?? null,       // ← enviamos string o null
       });
-      setOkMsgProfile("Perfil actualizado");
+      showNotification("Perfil actualizado", "success");
 
       setInitial({
         nombres, apellidos, email, username,
         fecha_nacimiento: dobStr, genero,
       });
       setConfirmSaveOpen(false);
-      setTimeout(() => setOkMsgProfile(null), 2500);
     } catch (e: any) {
-      setErrProfile(e?.message || "No se pudo actualizar");
+      showNotification(e?.message || "No se pudo actualizar", "error");
     } finally {
       setSavingProfile(false);
     }
@@ -139,18 +134,17 @@ export default function ProfilePage() {
   // ======= Cambiar contraseña (con confirmación) =======
   function requestChangePwd(e: React.FormEvent) {
     e.preventDefault();
-    setErrPwd(null);
 
     if (!curPwd || !newPwd || !newPwd2) {
-      setErrPwd("Completa todos los campos.");
+      showNotification("Completa todos los campos.", "warning");
       return;
     }
     if (newPwd.length < 6) {
-      setErrPwd("La nueva contraseña debe tener al menos 6 caracteres");
+      showNotification("La nueva contraseña debe tener al menos 6 caracteres", "warning");
       return;
     }
     if (newPwd !== newPwd2) {
-      setErrPwd("Las contraseñas no coinciden");
+      showNotification("Las contraseñas no coinciden", "warning");
       return;
     }
     setConfirmPassOpen(true);
@@ -160,12 +154,11 @@ export default function ProfilePage() {
     try {
       setChangingPwd(true);
       await changeMyPassword(curPwd, newPwd);
-      setOkMsgPwd("Contraseña actualizada");
+      showNotification("Contraseña actualizada", "success");
       setCurPwd(""); setNewPwd(""); setNewPwd2("");
       setConfirmPassOpen(false);
-      setTimeout(() => setOkMsgPwd(null), 2500);
     } catch (e: any) {
-      setErrPwd(e?.message || "No se pudo cambiar la contraseña");
+      showNotification(e?.message || "No se pudo cambiar la contraseña", "error");
     } finally {
       setChangingPwd(false);
     }
@@ -248,8 +241,7 @@ export default function ProfilePage() {
             </select>
           </label>
 
-          {okMsgProfile && <p className="text-sm text-emerald-600">{okMsgProfile}</p>}
-          {errProfile && <p className="text-sm text-rose-600">{errProfile}</p>}
+          {/* Mensajes eliminados */}
 
           <div className="mt-1">
             <button
@@ -297,8 +289,7 @@ export default function ProfilePage() {
             />
           </label>
 
-          {okMsgPwd && <p className="text-sm text-emerald-600">{okMsgPwd}</p>}
-          {errPwd && <p className="text-sm text-rose-600">{errPwd}</p>}
+          {/* Mensajes eliminados */}
 
           <div className="mt-1">
             <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2">

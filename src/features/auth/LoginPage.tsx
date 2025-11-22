@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ROUTES } from "../../lib/routes";
 import { loginPassword, loginWithCode } from "./services/auth.services";
+import Captcha from "../captcha/components/Captcha";
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -19,6 +20,7 @@ export default function LoginPage() {
   // code mode (alumnos sin email)
   const [username, setUsername] = useState("");
   const [code, setCode] = useState("");
+  const [captchaVerified, setCaptchaVerified] = useState(false);
 
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
@@ -42,6 +44,7 @@ export default function LoginPage() {
 
   async function submitCode(e: React.FormEvent) {
     e.preventDefault();
+    if (!captchaVerified) return;
     setError(null);
     setLoading(true);
     try {
@@ -141,10 +144,12 @@ export default function LoginPage() {
                   />
                 </div>
 
+                <Captcha onVerify={setCaptchaVerified} />
+
                 {error && <p className="text-sm text-rose-600">{error}</p>}
 
                 <button
-                  disabled={loading}
+                  disabled={loading || !captchaVerified}
                   className="mt-2 rounded-xl px-4 py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 text-white font-semibold shadow-lg shadow-indigo-600/20"
                 >
                   {loading ? "Validando…" : "Ingresar con código"}
