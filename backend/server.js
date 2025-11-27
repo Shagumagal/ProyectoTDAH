@@ -4,39 +4,40 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
+
 const resultadosRouter = require("./routes/resultados");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const passwordRoutes = require("./routes/password");
-const meRoutes = require("./routes/me");          // ← importa aquí
+const meRoutes = require("./routes/me");
 const gameRoutes = require("./routes/game");
+
 const app = express();
 
-// --- CORS (antes de cualquier ruta) ---
-// --- CORS (antes de cualquier ruta) ---
+// --- CORS ---
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-  "https://proyecto-tdah.vercel.app"
+  "https://proyecto-tdah.vercel.app", // EXACTO como sale en el navegador
 ];
 
-const corsOptions = {
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Not allowed by CORS"));
-    }
-  },
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true,
-  optionsSuccessStatus: 204,
-};
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+// Preflight (OPTIONS)
+app.options(
+  "*",
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
 
 // --- Middlewares base ---
 app.use(express.json());
@@ -46,15 +47,16 @@ app.use(morgan("dev"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 // --- Rutas ---
-app.use("/auth", passwordRoutes);  // /auth/forgot-password, /auth/reset-password
-app.use("/auth", authRoutes);      // login, 2FA, etc.
-app.use("/me",   meRoutes);        // ← ahora después de CORS y json
+app.use("/auth", passwordRoutes);
+app.use("/auth", authRoutes);
+app.use("/me", meRoutes);
 app.use("/users", userRoutes);
 app.use("/game", gameRoutes);
 app.use("/resultados", resultadosRouter);
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`API escuchando en http://localhost:${PORT}`);
-  console.log("CORS_ORIGIN:", ORIGINS);
+  console.log("CORS_ORIGINS:", allowedOrigins);
   console.log("JWT loaded?", !!process.env.JWT_SECRET);
 });
