@@ -13,22 +13,30 @@ const gameRoutes = require("./routes/game");
 const app = express();
 
 // --- CORS (antes de cualquier ruta) ---
-const ORIGINS = (process.env.CORS_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173")
-  .split(",").map(s => s.trim()).filter(Boolean);
+// --- CORS (antes de cualquier ruta) ---
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://proyecto-tdah.vercel.app"
+];
 
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true);                 // curl/Postman
-    cb(null, ORIGINS.length ? ORIGINS.includes(origin) : true);
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Not allowed by CORS"));
+    }
   },
-  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type","Authorization"],
-  credentials: false,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
   optionsSuccessStatus: 204,
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));                    // ← responde preflight
+app.options("*", cors(corsOptions));
 
 // --- Middlewares base ---
 app.use(express.json());
