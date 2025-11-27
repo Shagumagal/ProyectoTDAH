@@ -4,6 +4,7 @@ import type { Usuario, RolUI } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
 import UserForm, { type UserFormOutput } from "../components/UserForm";
 import SearchInput from "../../../componentes/SearchInput";
+import ConfirmDialog from "../../../componentes/ConfirmDialog";
 import {
   getUsers,
   createUser,
@@ -30,6 +31,8 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<{ userId: string; isActive: boolean } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   useEffect(() => {
     let cancel = false;
@@ -107,19 +110,30 @@ export default function UsersPage() {
     }
   }
 
-  async function toggleEstado(id: string) {
+  function toggleEstado(id: string) {
+    const u = usuarios.find((x) => x.id === id);
+    if (!u) return;
+    const isActive = u.estado === "Activo";
+    setConfirmDialog({ userId: id, isActive });
+  }
+
+  async function handleConfirmToggle() {
+    if (!confirmDialog) return;
+    const { userId, isActive } = confirmDialog;
+    
     try {
-      const u = usuarios.find((x) => x.id === id);
-      if (!u) return;
-      const isActiveNow = u.estado === "Activo";
-      await setUserActive(id, !isActiveNow);
+      setConfirmLoading(true);
+      await setUserActive(userId, !isActive);
       await refresh();
       showNotification(
-        `Usuario ${!isActiveNow ? "activado" : "inactivado"} con éxito`,
-        !isActiveNow ? "success" : "warning"
+        `Usuario ${!isActive ? "activado" : "inactivado"} con éxito`,
+        !isActive ? "success" : "warning"
       );
+      setConfirmDialog(null);
     } catch (e: any) {
       showNotification(e?.message || "No se pudo cambiar el estado", "error");
+    } finally {
+      setConfirmLoading(false);
     }
   }
 
@@ -251,6 +265,20 @@ export default function UsersPage() {
           />
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.isActive ? "Inactivar usuario" : "Activar usuario"}
+        description={confirmDialog?.isActive 
+          ? "¿Está seguro que desea inactivar a este usuario? El usuario no podrá acceder al sistema."
+          : "¿Está seguro que desea activar a este usuario? El usuario podrá acceder al sistema."}
+        confirmText={confirmDialog?.isActive ? "Inactivar" : "Activar"}
+        cancelText="Cancelar"
+        intent={confirmDialog?.isActive ? "danger" : "success"}
+        loading={confirmLoading}
+        onClose={() => setConfirmDialog(null)}
+        onConfirm={handleConfirmToggle}
+      />
     </section>
   );
 }

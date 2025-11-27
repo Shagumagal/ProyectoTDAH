@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Usuario } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
 import StudentForm from "../components/StudentForm";
+import ConfirmDialog from "../../../componentes/ConfirmDialog";
 import {
   getUsers,
   createUser,
@@ -24,6 +25,8 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<{ userId: string; isActive: boolean } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   useEffect(() => {
     let cancel = false;
@@ -100,19 +103,30 @@ export default function StudentsPage() {
     }
   }
 
-  async function toggleEstado(id: string) {
+  function toggleEstado(id: string) {
+    const u = alumnos.find((x) => x.id === id);
+    if (!u) return;
+    const isActive = u.estado === "Activo";
+    setConfirmDialog({ userId: id, isActive });
+  }
+
+  async function handleConfirmToggle() {
+    if (!confirmDialog) return;
+    const { userId, isActive } = confirmDialog;
+    
     try {
-      const u = alumnos.find((x) => x.id === id);
-      if (!u) return;
-      await setUserActive(id, u.estado !== "Activo");
+      setConfirmLoading(true);
+      await setUserActive(userId, !isActive);
       await refresh();
-      const isActiveNow = u.estado !== "Activo"; // estado nuevo
       showNotification(
-        `Alumno ${isActiveNow ? "activado" : "inactivado"} con éxito`,
-        isActiveNow ? "success" : "warning"
+        `Alumno ${!isActive ? "activado" : "inactivado"} con éxito`,
+        !isActive ? "success" : "warning"
       );
+      setConfirmDialog(null);
     } catch (e: any) {
       showNotification(e?.message || "No se pudo cambiar el estado", "error");
+    } finally {
+      setConfirmLoading(false);
     }
   }
 
@@ -240,6 +254,20 @@ export default function StudentsPage() {
           />
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.isActive ? "Inactivar alumno" : "Activar alumno"}
+        description={confirmDialog?.isActive 
+          ? "¿Está seguro que desea inactivar a este alumno? El alumno no podrá acceder al sistema."
+          : "¿Está seguro que desea activar a este alumno? El alumno podrá acceder al sistema."}
+        confirmText={confirmDialog?.isActive ? "Inactivar" : "Activar"}
+        cancelText="Cancelar"
+        intent={confirmDialog?.isActive ? "danger" : "success"}
+        loading={confirmLoading}
+        onClose={() => setConfirmDialog(null)}
+        onConfirm={handleConfirmToggle}
+      />
     </section>
   );
 }
