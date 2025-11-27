@@ -2,17 +2,16 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs, { Dayjs } from "dayjs";
 import { getMe, updateMe, changeMyPassword } from "./services/profile.services";
-import ConfirmDialog from "../../componentes/ConfirmDialog";
-import WhiteDatePicker from "../../componentes/WhiteDatePicker";
-import { useNotification } from "../../context/NotificationContext";
 
-type Gender = "masculino" | "femenino" | "no_binario" | "prefiero_no_decir" | null;
+import { useNotification } from "../../context/NotificationContext";
+import WhiteDatePicker from "../../componentes/WhiteDatePicker";
+import ConfirmDialog from "../../componentes/ConfirmDialog";
+
+type Gender = "masculino" | "femenino" | null;
 
 const GENDER_OPTIONS: Array<{ value: Exclude<Gender, null>; label: string }> = [
   { value: "masculino", label: "Masculino" },
   { value: "femenino", label: "Femenino" },
-  { value: "no_binario", label: "No binario" },
-  { value: "prefiero_no_decir", label: "Prefiero no decir" },
 ];
 
 export default function ProfilePage() {
@@ -60,7 +59,7 @@ export default function ProfilePage() {
         // Parseo seguro de fecha
         const d = me.fecha_nacimiento ? dayjs(me.fecha_nacimiento) : null;
         const g: Gender =
-          me.genero && ["masculino", "femenino", "no_binario", "prefiero_no_decir"].includes(String(me.genero))
+          me.genero && ["masculino", "femenino"].includes(String(me.genero))
             ? (me.genero as Gender) : null;
 
         setNombres(me.nombres || "");

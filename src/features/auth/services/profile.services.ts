@@ -7,8 +7,6 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 export type Gender =
   | "masculino"
   | "femenino"
-  | "no_binario"
-  | "prefiero_no_decir"
   | null;
 
 export interface MeData {
@@ -42,7 +40,7 @@ export async function updateMe(payload: {
   /** "YYYY-MM-DD" o null o "" para limpiar */
   fecha_nacimiento?: string | null | "";
   /** permitido o null/"" para limpiar */
-  genero?: Gender | "" ;
+  genero?: Gender | "";
 }) {
   const res = await fetch(`${API_URL}/me`, {
     method: "PUT",
@@ -73,6 +71,4 @@ export async function changeMyPassword(
 export const GENDERS: Exclude<Gender, null>[] = [
   "masculino",
   "femenino",
-  "no_binario",
-  "prefiero_no_decir",
 ];

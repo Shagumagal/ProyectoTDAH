@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { Usuario } from "../../../lib/types";
 import dayjs, { Dayjs } from "dayjs";
 import WhiteDatePicker from "../../../componentes/WhiteDatePicker";
-// ❗ Usa la ruta real donde guardaste tu WhiteDatePicker
- 
 
 // Tipos del form
 export type UserFormOutput = {
@@ -15,7 +13,7 @@ export type UserFormOutput = {
   username?: string;
   password?: string;
   fecha_nacimiento?: string; // YYYY-MM-DD
-  genero?: "masculino" | "femenino" | "no_binario" | "prefiero_no_decir" | null;
+  genero?: "masculino" | "femenino" | null;
 };
 
 export type UserFormMode = "create" | "edit";
@@ -133,12 +131,7 @@ export default function UserForm({
       return;
     }
 
-    // Cuando editamos un usuario ya existente necesitamos pasar su id para que
-    // la página `UsersPage` pueda distinguir entre crear y actualizar.
-    // Al no incluir `id` en el payload, el formulario siempre disparaba la
-    // lógica de creación y provocaba un error 409 por duplicidad de email/usuario.
     const payload: UserFormOutput = {
-      // Para edición incluimos el ID del usuario, de lo contrario queda undefined
       id: mode === "edit" ? initialUser?.id : undefined,
       nombre: nombre.trim(),
       apellido: apellido.trim(),
@@ -237,16 +230,13 @@ export default function UserForm({
               label="Fecha de Nacimiento"
               format="DD/MM/YYYY"
               value={fechaNac}
-              // El onChange del DatePicker devuelve dos parámetros (valor y entrada de teclado).
-              // Usamos una función explícita para extraer sólo el valor y evitar que React pase
-              // inadvertidamente el segundo argumento a setFechaNac.
               onChange={(newValue: Dayjs | null) => setFechaNac(newValue)}
               minDate={minDOB}
               maxDate={maxDOB}
               slotProps={{
                 popper: {
-                  disablePortal: false, // que se renderice en <body>
-                  sx: { zIndex: 2100 }, // por encima del overlay del modal
+                  disablePortal: false,
+                  sx: { zIndex: 2100 },
                 },
               }}
             />
@@ -271,13 +261,11 @@ export default function UserForm({
             <option value="">— Selecciona (opcional) —</option>
             <option value="masculino">Masculino</option>
             <option value="femenino">Femenino</option>
-            <option value="no_binario">No binario</option>
-            <option value="prefiero_no_decir">Prefiero no decir</option>
           </select>
         </div>
 
         {/* Username */}
-        <div className="md:col-span-2">
+        <div>
           <label className="block text-sm font-semibold text-slate-300">
             Usuario <span className="text-slate-400">(si no tiene email)</span>
           </label>

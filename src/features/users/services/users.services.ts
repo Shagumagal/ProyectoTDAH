@@ -5,7 +5,7 @@ import { authHeaders } from "../../../lib/http";
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 export type RoleDb = "estudiante" | "profesor" | "psicologo" | "admin";
-export type GeneroDb = "masculino" | "femenino" | "no_binario" | "prefiero_no_decir";
+export type GeneroDb = "masculino" | "femenino";
 
 export interface CreateUserPayload {
   nombres: string;

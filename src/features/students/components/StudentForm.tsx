@@ -3,7 +3,7 @@ import dayjs, { Dayjs } from "dayjs";
 import WhiteDatePicker from "../../../componentes/WhiteDatePicker";
 import ConfirmDialog from "../../../componentes/ConfirmDialog";
 
-type Genero = "masculino" | "femenino" | "no_binario" | "prefiero_no_decir";
+type Genero = "masculino" | "femenino";
 
 type Props = {
   initial?: {
@@ -53,13 +53,10 @@ function fmtGenero(g?: Genero | null): string {
   switch (g) {
     case "masculino": return "Masculino";
     case "femenino": return "Femenino";
-    case "no_binario": return "No binario";
-    case "prefiero_no_decir": return "Prefiero no decir";
     default: return "—";
   }
 }
 
-/* ---------- Componente ---------- */
 export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props) {
   const isCreate = mode === "create";
 
@@ -277,8 +274,6 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
               <option value="">— Selecciona (opcional) —</option>
               <option value="masculino">Masculino</option>
               <option value="femenino">Femenino</option>
-              <option value="no_binario">No binario</option>
-              <option value="prefiero_no_decir">Prefiero no decir</option>
             </select>
           </div>
 

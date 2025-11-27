@@ -66,7 +66,7 @@ export default function StudentsPage() {
     username?: string | null;
     password?: string;
     fecha_nacimiento: string;
-    genero?: "masculino" | "femenino" | "no_binario" | "prefiero_no_decir" | null;
+    genero?: "masculino" | "femenino" | null;
   }) {
     try {
       if (!data.id) {
