@@ -1,4 +1,4 @@
-import React from "react";
+
 import { useNavigate } from "react-router-dom";
 import Captcha from "./components/Captcha";
 import { ROUTES } from "../../lib/routes";

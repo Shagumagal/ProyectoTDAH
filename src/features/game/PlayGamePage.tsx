@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { API_URL, authHeaders } from "../../lib/http";
 
 const GAME_URL = import.meta.env.VITE_GAME_URL ?? "http://localhost:53036/"; // p.ej. https://tu-juego.vercel.app
