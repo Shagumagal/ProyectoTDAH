@@ -60,3 +60,14 @@ app.listen(PORT, () => {
   console.log("CORS_ORIGINS:", allowedOrigins);
   console.log("JWT loaded?", !!process.env.JWT_SECRET);
 });
+
+// Manejo de errores globales para evitar crashes por promesas no manejadas
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  // No salimos del proceso, solo logueamos
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  // Opcional: process.exit(1) si es muy grave, pero para dev mejor ver el error sin reiniciar todo el tiempo
+});

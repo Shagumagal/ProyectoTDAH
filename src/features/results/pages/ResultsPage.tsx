@@ -336,7 +336,7 @@ export default function ResultsPage({ data: propData = DEMO }: { data?: Resultad
     if (!id) { setApiData(null); return; }
     (async () => {
       try {
-        const url = `${import.meta.env.VITE_API_URL}/resultados/${id}`;
+        const url = `${import.meta.env.VITE_API_URL}/resultados/alumno/${id}`;
         const r = await fetch(url);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const json = (await r.json()) as ResultadosAlumno;

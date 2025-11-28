@@ -97,7 +97,12 @@ router.post("/login-password", async (req, res) => {
     }
 
     // 2) Rol SIN 2FA (p.ej., 'estudiante') → login directo
-    const token = jwt.sign({ sub: user.id, role: user.role }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ 
+      sub: user.id, 
+      role: user.role,
+      username: user.username,
+      email: user.email || null
+    }, process.env.JWT_SECRET, {
       expiresIn: "8h",
     });
     return res.json({
@@ -144,7 +149,19 @@ router.post("/verify-2fa", async (req, res) => {
       return res.status(403).json({ error: "Usuario inactivo" });
     }
 
-    const token = jwt.sign({ sub: user_id, role: info.role }, process.env.JWT_SECRET, {
+    // Obtener username y email para el JWT
+    const { rows: userRows } = await pool.query(
+      `SELECT username, email FROM app.usuarios WHERE id = $1 LIMIT 1`,
+      [user_id]
+    );
+    const userData = userRows[0] || {};
+    
+    const token = jwt.sign({ 
+      sub: user_id, 
+      role: info.role,
+      username: userData.username || null,
+      email: userData.email || null
+    }, process.env.JWT_SECRET, {
       expiresIn: "8h",
     });
     return res.json({
@@ -235,7 +252,19 @@ router.post("/login-code", async (req, res) => {
       [user.id]
     );
 
-    const token = jwt.sign({ sub: user.id, role: user.role }, process.env.JWT_SECRET, {
+    // Obtener username y email para el JWT
+    const { rows: userDataRows } = await pool.query(
+      `SELECT username, email FROM app.usuarios WHERE id = $1 LIMIT 1`,
+      [user.id]
+    );
+    const userDataInfo = userDataRows[0] || {};
+    
+    const token = jwt.sign({ 
+      sub: user.id, 
+      role: user.role,
+      username: userDataInfo.username || null,
+      email: userDataInfo.email || null
+    }, process.env.JWT_SECRET, {
       expiresIn: "8h",
     });
 

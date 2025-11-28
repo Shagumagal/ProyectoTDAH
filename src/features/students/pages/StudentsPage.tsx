@@ -1,5 +1,7 @@
 // src/features/students/pages/StudentsPage.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ROUTES } from "../../../lib/routes";
 import type { Usuario } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
 import StudentForm from "../components/StudentForm";
@@ -19,6 +21,7 @@ type DialogState = { mode: "create" | "edit"; user?: Usuario } | null;
 import { useNotification } from "../../../context/NotificationContext";
 
 export default function StudentsPage() {
+  const navigate = useNavigate();
   const { showNotification } = useNotification();
   const [alumnos, setAlumnos] = useState<Usuario[]>([]);
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -214,6 +217,12 @@ export default function StudentsPage() {
                             onClick={() => setDialog({ mode: "edit", user: u })}
                           >
                             Editar
+                          </button>
+                          <button
+                            className="rounded-lg px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                            onClick={() => navigate(ROUTES.resultadoById.replace(":id", u.id))}
+                          >
+                            Resultados
                           </button>
                           <button
                             onClick={() => toggleEstado(u.id)}

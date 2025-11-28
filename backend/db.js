@@ -25,7 +25,8 @@ const pool = new Pool({
 
 pool.on("error", (err) => {
   console.error("PG pool error:", err);
-  process.exit(1);
+  // No matamos el proceso, solo logueamos el error.
+  // process.exit(1);
 });
 
 const query = (text, params) => pool.query(text, params);

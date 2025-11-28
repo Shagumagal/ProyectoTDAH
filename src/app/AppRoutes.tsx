@@ -12,6 +12,8 @@ import { esES as pickersEsES } from "@mui/x-date-pickers/locales";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
 
+import { NotificationProvider } from "../context/NotificationContext";
+
 dayjs.locale("es");
 
 const UsersPage = lazy(() => import("../features/users/pages/UsersPage"));
@@ -19,14 +21,10 @@ const LoginPage = lazy(() => import("../features/auth/LoginPage"));
 const StudentsPage = lazy(() => import("../features/students/pages/StudentsPage"));
 const ForgotPasswordPage = lazy(() => import("../features/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("../features/auth/ResetPasswordPage"));
-// 👇 así, con ../ y en minúsculas
 const ResultsPage = lazy(() => import("../features/results/pages/ResultsPage"));
-
-
-
-
-const PlayGamePage = lazy(() => import("../features/game/PlayGamePage"));
+const PlayGamePage = lazy(() => import("../features/game/GamePage").then(m => ({ default: m.GamePage })));
 const CaptchaPage = lazy(() => import("../features/captcha/CaptchaPage"));
+
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
 /* helpers */
@@ -37,6 +35,7 @@ function parseJwt(token: string): any {
     return JSON.parse(decodeURIComponent(escape(json)));
   } catch { return null; }
 }
+
 function getRoleFromToken(): Role | null {
   const t = localStorage.getItem("auth_token");
   if (!t) return null;
@@ -44,12 +43,14 @@ function getRoleFromToken(): Role | null {
   const r = (p?.role || "").toLowerCase();
   return ["admin", "profesor", "psicologo", "estudiante"].includes(r) ? (r as Role) : null;
 }
+
 const HOME_BY_ROLE: Record<Role, string> = {
   admin: ROUTES.usuarios,
   profesor: ROUTES.alumnos,
   psicologo: ROUTES.resultados,
   estudiante: ROUTES.videojuego,
 };
+
 function homeByRole(role: Role | null) { return role ? HOME_BY_ROLE[role] : ROUTES.login; }
 
 /* guards */
@@ -71,6 +72,7 @@ function ProtectedRoute({ allow, children }: { allow: Role[]; children: JSX.Elem
 
   return <AppShell>{children}</AppShell>;
 }
+
 function PublicOnlyRoute({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem("auth_token");
   const role = getRoleFromToken();
@@ -79,12 +81,11 @@ function PublicOnlyRoute({ children }: { children: JSX.Element }) {
   if (token) return <Navigate to={homeByRole(role)} replace state={{ from: location }} />;
   return children;
 }
+
 function AppHomeRedirect() {
   const role = getRoleFromToken();
   return <Navigate to={homeByRole(role)} replace />;
 }
-
-import { NotificationProvider } from "../context/NotificationContext";
 
 /* routes */
 export default function AppRoutes() {
@@ -121,6 +122,14 @@ export default function AppRoutes() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path={ROUTES.resultadoById}
+                  element={
+                    <ProtectedRoute allow={["admin", "profesor", "psicologo"]}>
+                      <ResultsPage />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* Alumnos: admin y profesor (psicólogo fuera) */}
                 <Route
@@ -144,14 +153,7 @@ export default function AppRoutes() {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path={ROUTES.resultados}
-                  element={
-                    <ProtectedRoute allow={["admin", "profesor", "psicologo"]}>
-                      <div className="p-6">Resultados (pendiente)</div>
-                    </ProtectedRoute>
-                  }
-                />
+                
                 <Route
                   path={ROUTES.perfil}
                   element={

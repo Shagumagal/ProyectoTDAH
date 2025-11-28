@@ -99,8 +99,14 @@ router.put("/", async (req, res) => {
 
     // email (opcional; si viene, validar formato; si "", dejar NULL)
     if (Object.prototype.hasOwnProperty.call(req.body, "email")) {
-      if (email === null) return res.status(400).json({ error: "EMAIL_NULL" });
       const em = String(email ?? "").trim();
+
+      // Para no estudiantes, el email es obligatorio si se intenta modificar
+      const myRole = (req.auth?.role || "").toLowerCase();
+      if (!em && myRole !== "estudiante") {
+        return res.status(400).json({ error: "EMAIL_REQUIRED" });
+      }
+
       const ok = !em || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
       if (!ok) return res.status(400).json({ error: "EMAIL_INVALID" });
       i++; sets.push(`email = NULLIF($${i}, '')::citext`); vals.push(em);

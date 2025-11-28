@@ -132,4 +132,100 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+/** GET /resultados/alumno/:id (reporte completo) */
+router.get("/alumno/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    // 1. Datos del alumno
+    const studentRes = await query("SELECT id, nombre, fecha_nacimiento FROM app.usuarios WHERE id = $1", [id]);
+    if (studentRes.rowCount === 0) return res.status(404).json({ error: "Alumno no encontrado" });
+    const student = studentRes.rows[0];
+
+    // Calcular edad
+    let edad = 0;
+    if (student.fecha_nacimiento) {
+      const diff = Date.now() - new Date(student.fecha_nacimiento).getTime();
+      edad = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+    }
+
+    // 2. Últimos resultados por prueba
+    const tests = ["gng", "sst", "stroop", "tol"];
+    const results = {};
+
+    for (const code of tests) {
+      const sql = `
+        SELECT r.*
+        FROM app.resultados r
+        JOIN app.pruebas p ON p.id = r.prueba_id
+        WHERE r.alumno_id = $1 AND p.codigo = $2
+        ORDER BY r.created_at DESC
+        LIMIT 1
+      `;
+      const r = await query(sql, [id, code]);
+      if (r.rowCount > 0) {
+        results[code] = r.rows[0];
+      }
+    }
+
+    // 3. Mapeo a estructura frontend
+    const mapBase = (row) => {
+      if (!row) return {
+        accuracy: 0, commissionRate: 0, omissionRate: 0,
+        medianRT: 0, p95RT: 0, cvRT: 0
+      };
+      const total = row.total_estimulos || 1;
+      const mean = row.rt_promedio_ms || 1;
+      return {
+        accuracy: (row.aciertos || 0) / total,
+        commissionRate: (row.errores_comision || 0) / total,
+        omissionRate: (row.errores_omision || 0) / total,
+        medianRT: (row.rt_p50_ms || 0) / 1000,
+        p95RT: (row.rt_p90_ms || 0) / 1000,
+        cvRT: (row.rt_sd_ms || 0) / mean,
+      };
+    };
+
+    // Extraer detalles si existen
+    const gngDet = results.gng?.detalles || {};
+    const sstDet = results.sst?.detalles || {};
+    const strDet = results.stroop?.detalles || {};
+    const tolDet = results.tol?.detalles || {};
+
+    const response = {
+      alumno: {
+        id: student.id,
+        nombre: student.nombre,
+        edad: edad || undefined,
+        curso: "N/A"
+      },
+      fecha: new Date().toISOString(),
+      goNoGo: {
+        ...mapBase(results.gng),
+        fastGuessRate: gngDet.fastGuessRate || 0,
+        lapsesRate: gngDet.lapsesRate || 0,
+        vigilanceDecrement: gngDet.vigilanceDecrement || 0,
+      },
+      stopSignal: {
+        ...mapBase(results.sst),
+        stopFailureRate: sstDet.stopFailureRate || 0,
+        ssrt: sstDet.ssrt || 0,
+      },
+      stroop: results.stroop ? {
+        deltaInterference: strDet.deltaInterference || 0,
+        accuracy: (results.stroop.aciertos || 0) / (results.stroop.total_estimulos || 1)
+      } : undefined,
+      tol: results.tol ? {
+        planLatency: tolDet.planLatency || 0,
+        excessMoves: tolDet.excessMoves || 0,
+        ruleViolations: tolDet.ruleViolations || 0
+      } : undefined
+    };
+
+    res.json(response);
+  } catch (e) {
+    console.error("GET /resultados/alumno/:id error:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
