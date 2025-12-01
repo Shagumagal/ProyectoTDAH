@@ -243,11 +243,12 @@ router.post("/login-code", async (req, res) => {
       return res.status(403).json({ error: "Usuario inactivo" });
     }
 
-    // Invalidar el código tras usarlo
+    // Invalidar el código tras usarlo y forzar cambio de contraseña
     await pool.query(
       `UPDATE app.usuarios
           SET login_code_hash = NULL,
-              login_code_expires_at = NULL
+              login_code_expires_at = NULL,
+              must_change_password = TRUE
         WHERE id = $1`,
       [user.id]
     );

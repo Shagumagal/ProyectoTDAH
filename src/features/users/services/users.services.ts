@@ -94,3 +94,21 @@ export async function setUserActive(id: string, is_active: boolean) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export interface RegenerateCodeResp {
+  ok: true;
+  login_code: string;
+  username: string;
+  expires_in_minutes: number;
+}
+
+export async function regenerateLoginCode(id: string): Promise<RegenerateCodeResp> {
+  const res = await fetch(`${API_URL}/users/${id}/regenerate-code`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || "Error regenerando código");
+  return JSON.parse(text) as RegenerateCodeResp;
+}
+

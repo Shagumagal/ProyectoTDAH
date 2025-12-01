@@ -20,7 +20,9 @@ export interface MeData {
   /** "YYYY-MM-DD" o null */
   fecha_nacimiento: string | null;
   /** uno de los permitidos o null */
+  /** uno de los permitidos o null */
   genero: Gender;
+  must_change_password?: boolean;
 }
 
 /** Obtener mi perfil */

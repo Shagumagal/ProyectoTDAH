@@ -38,6 +38,7 @@ router.get("/", async (req, res) => {
               u.activo,
               u.fecha_nacimiento,     -- DATE (puede ser NULL)
               u.genero,               -- TEXT (puede ser NULL)
+              u.must_change_password, -- BOOL
               r.nombre                AS rol
          FROM app.usuarios u
          JOIN app.roles r ON r.id = u.rol_id
@@ -60,6 +61,7 @@ router.get("/", async (req, res) => {
       username: rows[0].username,
       rol: rows[0].rol,
       activo: rows[0].activo,
+      must_change_password: rows[0].must_change_password, // <--- NUEVO
       // devolver como 'YYYY-MM-DD' o null
       fecha_nacimiento: rows[0].fecha_nacimiento
         ? String(rows[0].fecha_nacimiento) // PG devuelve Date -> a ISO corto
@@ -177,25 +179,48 @@ router.put("/", async (req, res) => {
 });
 
 // ---- POST /me/password — cambiar contraseña ----
+// ---- POST /me/password — cambiar contraseña ----
 router.post("/password", async (req, res) => {
   try {
     const { current_password, new_password } = req.body ?? {};
-    if (!current_password || !new_password) {
+    
+    if (!new_password) {
       return res.status(400).json({ error: "MISSING_FIELDS" });
     }
     if (String(new_password).length < 6) {
       return res.status(400).json({ error: "WEAK_PASSWORD" });
     }
 
-    const check = await pool.query(
-      `SELECT id FROM app.usuarios
-        WHERE id = $1
-          AND password_hash = crypt($2, password_hash)
-        LIMIT 1`,
-      [req.auth.userId, current_password]
+    // 1. Obtener estado actual del usuario (para ver si must_change_password es true)
+    const userRes = await pool.query(
+      `SELECT id, must_change_password, password_hash FROM app.usuarios WHERE id = $1`,
+      [req.auth.userId]
     );
-    if (!check.rows[0]) return res.status(400).json({ error: "BAD_CURRENT_PASSWORD" });
+    const user = userRes.rows[0];
+    if (!user) return res.status(404).json({ error: "USER_NOT_FOUND" });
 
+    // 2. Si NO está obligado a cambiar contraseña, EXIGIR current_password válida
+    if (!user.must_change_password) {
+      if (!current_password) {
+        return res.status(400).json({ error: "MISSING_FIELDS" });
+      }
+      
+      const check = await pool.query(
+        `SELECT id FROM app.usuarios
+          WHERE id = $1
+            AND password_hash = crypt($2, password_hash)
+          LIMIT 1`,
+        [req.auth.userId, current_password]
+      );
+      
+      if (!check.rows[0]) {
+        return res.status(400).json({ error: "BAD_CURRENT_PASSWORD" });
+      }
+    }
+    // Si must_change_password es TRUE, permitimos cambiarla SIN current_password
+    // (ya que el usuario acaba de entrar con un código temporal o credencial válida)
+
+    // 3. Actualizar contraseña
     await pool.query(
       `UPDATE app.usuarios
           SET password_hash        = crypt($2, gen_salt('bf')),

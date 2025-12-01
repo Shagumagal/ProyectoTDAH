@@ -6,11 +6,13 @@ import type { Usuario } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
 import StudentForm from "../components/StudentForm";
 import ConfirmDialog from "../../../componentes/ConfirmDialog";
+import CodeModal from "../components/CodeModal";
 import {
   getUsers,
   createUser,
   updateUser,
   setUserActive,
+  regenerateLoginCode,
   type RoleDb,
 } from "../../users/services/users.services";
 
@@ -30,6 +32,7 @@ export default function StudentsPage() {
   const [q, setQ] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<{ userId: string; isActive: boolean } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [codeData, setCodeData] = useState<{ code: string; username: string; expiresInMinutes: number } | null>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -133,6 +136,20 @@ export default function StudentsPage() {
     }
   }
 
+  async function handleRegenerateCode(userId: string) {
+    try {
+      const result = await regenerateLoginCode(userId);
+      setCodeData({
+        code: result.login_code,
+        username: result.username,
+        expiresInMinutes: result.expires_in_minutes,
+      });
+      showNotification("Código generado con éxito", "success");
+    } catch (e: any) {
+      showNotification(e?.message || "Error al generar código", "error");
+    }
+  }
+
   return (
     <section className="grid gap-6">
       <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
@@ -211,24 +228,34 @@ export default function StudentsPage() {
                         </span>
                       </td>
                       <td className="py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <button
-                            className="rounded-lg px-3 py-1 bg-slate-100 dark:bg-slate-800"
+                            className="rounded-lg px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"
                             onClick={() => setDialog({ mode: "edit", user: u })}
                           >
                             Editar
                           </button>
                           <button
-                            className="rounded-lg px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                            className="rounded-lg px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/60"
                             onClick={() => navigate(ROUTES.resultadoById.replace(":id", u.id))}
                           >
                             Resultados
                           </button>
+                          {!u.correo && u.username && (
+                            <button
+                              onClick={() => handleRegenerateCode(u.id)}
+                              className="rounded-lg px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/60 flex items-center gap-1"
+                              title="Generar código temporal de acceso"
+                            >
+                              <span>🔑</span>
+                              <span>Código</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => toggleEstado(u.id)}
                             className={`rounded-lg px-3 py-1 ${u.estado === "Activo"
-                              ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                              ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-900/60"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60"
                               }`}
                           >
                             {u.estado === "Activo" ? "Inactivar" : "Activar"}
@@ -276,6 +303,14 @@ export default function StudentsPage() {
         loading={confirmLoading}
         onClose={() => setConfirmDialog(null)}
         onConfirm={handleConfirmToggle}
+      />
+
+      <CodeModal
+        open={!!codeData}
+        onClose={() => setCodeData(null)}
+        code={codeData?.code || ""}
+        username={codeData?.username || ""}
+        expiresInMinutes={codeData?.expiresInMinutes || 15}
       />
     </section>
   );

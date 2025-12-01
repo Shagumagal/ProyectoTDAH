@@ -438,4 +438,74 @@ router.patch("/:id/status", requireRole("admin", "profesor"), async (req, res) =
   }
 });
 
+// ====== POST: regenerar código temporal para alumno sin email ======
+router.post("/:id/regenerate-code", requireRole("admin", "profesor"), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // 1. Verificar que el usuario objetivo existe y es estudiante
+    const userCheck = await pool.query(
+      `SELECT u.id, u.email, u.username, r.nombre AS rol
+         FROM app.usuarios u
+         JOIN app.roles r ON r.id = u.rol_id
+        WHERE u.id = $1
+        LIMIT 1`,
+      [id]
+    );
+
+    if (!userCheck.rows[0]) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    const user = userCheck.rows[0];
+
+    // 2. Verificar que sea estudiante
+    if (user.rol !== "estudiante") {
+      return res.status(400).json({ error: "Solo se pueden regenerar códigos para estudiantes" });
+    }
+
+    // 3. Verificar que tenga username (requerido para login con código)
+    if (!user.username) {
+      return res.status(400).json({ error: "El estudiante debe tener un nombre de usuario configurado" });
+    }
+
+    // 4. Verificar que las columnas necesarias existan
+    const colsRes = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema='app' AND table_name='usuarios'
+        AND column_name IN ('login_code_hash', 'login_code_expires_at')
+    `);
+    const cols = new Set(colsRes.rows.map(r => r.column_name));
+
+    if (!cols.has("login_code_hash") || !cols.has("login_code_expires_at")) {
+      return res.status(500).json({ error: "La base de datos no soporta códigos temporales" });
+    }
+
+    // 5. Generar nuevo código de 6 dígitos
+    const loginCode = String(Math.floor(100000 + Math.random() * 900000));
+
+    // 6. Guardar hash del código con expiración de 15 minutos
+    await pool.query(
+      `UPDATE app.usuarios
+          SET login_code_hash = crypt($1, gen_salt('bf')),
+              login_code_expires_at = now() + interval '15 minutes',
+              updated_at = now()
+        WHERE id = $2`,
+      [loginCode, id]
+    );
+
+    // 7. Retornar el código en texto plano (solo esta vez, para que el docente lo copie)
+    return res.status(200).json({
+      ok: true,
+      login_code: loginCode,
+      username: user.username,
+      expires_in_minutes: 15,
+    });
+  } catch (e) {
+    console.error("POST /users/:id/regenerate-code error:", e);
+    return res.status(500).json({ error: e.message || "Error generando código" });
+  }
+});
+
 module.exports = router;

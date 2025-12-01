@@ -19,6 +19,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
 
   // ---- Datos de perfil ----
+  const [mustChangePwd, setMustChangePwd] = useState(false);
   const [nombres, setNombres] = useState("");
   const [apellidos, setApellidos] = useState("");
   const [email, setEmail] = useState<string>("");
@@ -68,6 +69,7 @@ export default function ProfilePage() {
         setUsername(me.username || "");
         setDob(d && d.isValid() ? d : null);
         setGenero(g);
+        setMustChangePwd(!!me.must_change_password);
 
         setInitial({
           nombres: me.nombres || "",
@@ -134,7 +136,7 @@ export default function ProfilePage() {
   function requestChangePwd(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!curPwd || !newPwd || !newPwd2) {
+    if ((!curPwd && !mustChangePwd) || !newPwd || !newPwd2) {
       showNotification("Completa todos los campos.", "warning");
       return;
     }
@@ -258,15 +260,23 @@ export default function ProfilePage() {
         <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Cambiar contraseña</h2>
 
         <form onSubmit={requestChangePwd} className="grid gap-3">
-          <label className="grid gap-1">
-            <span className="text-sm dark:text-slate-200">Contraseña actual</span>
-            <input
-              type="password"
-              className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 bg-white text-slate-900 dark:text-slate-200 dark:bg-slate-900/60"
-              value={curPwd}
-              onChange={(e) => setCurPwd(e.target.value)}
-            />
-          </label>
+          {!mustChangePwd && (
+            <label className="grid gap-1">
+              <span className="text-sm dark:text-slate-200">Contraseña actual</span>
+              <input
+                type="password"
+                className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 bg-white text-slate-900 dark:text-slate-200 dark:bg-slate-900/60"
+                value={curPwd}
+                onChange={(e) => setCurPwd(e.target.value)}
+              />
+            </label>
+          )}
+
+          {mustChangePwd && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 p-3 rounded-xl text-sm mb-2">
+              ⚠️ Has ingresado con un código temporal. Debes crear una nueva contraseña.
+            </div>
+          )}
 
           <label className="grid gap-1">
             <span className="text-sm dark:text-slate-200">Nueva contraseña</span>
