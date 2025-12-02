@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { Usuario } from "../../../lib/types";
 import dayjs, { Dayjs } from "dayjs";
 import WhiteDatePicker from "../../../componentes/WhiteDatePicker";
+import ValidatedInput from "../../../componentes/ValidatedInput";
+import { validateField, DomainValidators, type ValidationRule } from "../../../lib/validation";
 
 // Tipos del form
 export type UserFormOutput = {
@@ -29,8 +31,6 @@ type Props = {
 // Helpers
 const normalizeUsername = (s = "") =>
   s.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
-const emailOk = (v: string) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-const usernameOk = (v: string) => !v || /^[a-z0-9_]{3,24}$/.test(v);
 
 function isAtLeast5Years(d: Dayjs | null) {
   if (!d || !d.isValid()) return false;
@@ -48,6 +48,7 @@ export default function UserForm({
   onSubmit,
   className = "",
 }: Props) {
+  // Estados del formulario
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
   const [rol, setRol] = useState<UserFormOutput["rol"]>("Alumno");
@@ -55,16 +56,37 @@ export default function UserForm({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
-
   const [fechaNac, setFechaNac] = useState<Dayjs | null>(null);
   const [genero, setGenero] = useState<UserFormOutput["genero"]>(null);
 
+  // Estados de validación
+  const [touched, setTouched] = useState({
+    nombre: false,
+    apellido: false,
+    correo: false,
+    username: false,
+    password: false,
+    fechaNac: false,
+    genero: false,
+  });
+
+  const [errors, setErrors] = useState({
+    nombre: "",
+    apellido: "",
+    correo: "",
+    username: "",
+    password: "",
+    fechaNac: "",
+    genero: "",
+    emailOrUsername: "",
+  });
+
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [globalError, setGlobalError] = useState<string | null>(null);
 
   const isAlumno = useMemo(() => rol === "Alumno", [rol]);
 
-  // límites del picker (por si los quieres reusar)
+  // límites del picker
   const maxDOB = dayjs().subtract(5, "year");
   const minDOB = dayjs("1900-01-01");
 
@@ -94,40 +116,187 @@ export default function UserForm({
       setFechaNac(null);
       setGenero(null);
     }
-    setError(null);
+    setGlobalError(null);
+    // Reset validation state
+    setTouched({
+      nombre: false,
+      apellido: false,
+      correo: false,
+      username: false,
+      password: false,
+      fechaNac: false,
+      genero: false,
+    });
+    setErrors({
+      nombre: "",
+      apellido: "",
+      correo: "",
+      username: "",
+      password: "",
+      fechaNac: "",
+      genero: "",
+      emailOrUsername: "",
+    });
   }, [mode, initialUser]);
 
-  function validate(): string | null {
-    const e = correo.trim();
-    const u = normalizeUsername(username);
+  // Validaciones individuales
+  const validateNombre = (value: string) => {
+    const rules: ValidationRule[] = [
+      { type: 'required', message: 'El nombre es obligatorio' },
+      { type: 'minLength', length: 2, message: 'Mínimo 2 caracteres' },
+      { type: 'pattern', regex: /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, message: 'Solo letras y espacios' },
+    ];
+    return validateField(value, rules);
+  };
 
-    if (!nombre.trim() && !apellido.trim())
-      return "Nombre(s) o Apellido(s) requerido(s).";
-    if (!emailOk(e)) return "Correo inválido.";
-    if (!usernameOk(u)) return "Usuario inválido. Use 3–24 [a-z0-9_].";
+  const validateApellido = (value: string) => {
+    const rules: ValidationRule[] = [
+      { type: 'required', message: 'El apellido es obligatorio' },
+      { type: 'minLength', length: 2, message: 'Mínimo 2 caracteres' },
+      { type: 'pattern', regex: /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, message: 'Solo letras y espacios' },
+    ];
+    return validateField(value, rules);
+  };
 
-    if (rol !== "Alumno" && !e) return "Email es obligatorio para este rol.";
-    if (isAlumno && !e && !u)
-      return "Para Alumno sin email, “Usuario” es obligatorio.";
+  const validateCorreo = (value: string) => {
+    if (!value.trim() && isAlumno) return { isValid: true }; // Opcional para alumno si tiene username
+    if (rol !== "Alumno" && !value.trim()) return { isValid: false, error: "El correo es obligatorio para este rol" };
+    
+    const rules: ValidationRule[] = [
+      { type: 'email', message: 'Correo inválido' },
+    ];
+    return validateField(value, rules);
+  };
 
-    if (isAlumno && !fechaNac)
-      return "Fecha de nacimiento es obligatoria para Alumno.";
-    if (fechaNac && !isAtLeast5Years(fechaNac))
-      return "Debe tener al menos 5 años.";
+  const validateUsername = (value: string) => {
+    if (!value.trim() && isAlumno) return { isValid: true }; // Opcional para alumno si tiene email
+    if (rol !== "Alumno" && !value.trim()) return { isValid: true }; // Opcional para otros roles
+    
+    const rules: ValidationRule[] = [
+      { type: 'username', message: 'Usuario inválido (3-24 caracteres: a-z, 0-9, _)' },
+    ];
+    return validateField(value, rules);
+  };
 
-    if (mode === "create" && password && password.length < 6) {
-      return "La contraseña debe tener al menos 6 caracteres.";
+  const validatePassword = (value: string) => {
+    if (mode !== "create") return { isValid: true };
+    if (!value.trim()) return { isValid: true }; // Opcional
+    
+    const rules: ValidationRule[] = [
+      { type: 'minLength', length: 6, message: 'Mínimo 6 caracteres' },
+    ];
+    return validateField(value, rules);
+  };
+
+  const validateGenero = (value: string | null) => {
+    if (!value) return { isValid: false, error: "Debes seleccionar un género" };
+    return { isValid: true };
+  };
+
+  // Handlers de blur
+  const handleBlur = (field: keyof typeof touched) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    
+    let result;
+    switch (field) {
+      case 'nombre':
+        result = validateNombre(nombre);
+        setErrors(prev => ({ ...prev, nombre: result.error || '' }));
+        break;
+      case 'apellido':
+        result = validateApellido(apellido);
+        setErrors(prev => ({ ...prev, apellido: result.error || '' }));
+        break;
+      case 'correo':
+        result = validateCorreo(correo);
+        setErrors(prev => ({ ...prev, correo: result.error || '' }));
+        break;
+      case 'username':
+        result = validateUsername(username);
+        setErrors(prev => ({ ...prev, username: result.error || '' }));
+        break;
+      case 'password':
+        result = validatePassword(password);
+        setErrors(prev => ({ ...prev, password: result.error || '' }));
+        break;
+      case 'genero':
+        result = validateGenero(genero);
+        setErrors(prev => ({ ...prev, genero: result.error || '' }));
+        break;
     }
-    return null;
+  };
+
+  function validateAll(): boolean {
+    const nombreRes = validateNombre(nombre);
+    const apellidoRes = validateApellido(apellido);
+    const correoRes = validateCorreo(correo);
+    const usernameRes = validateUsername(username);
+    const passwordRes = validatePassword(password);
+    const generoRes = validateGenero(genero);
+
+    // Validación especial para alumno: email O username
+    let emailOrUsernameError = "";
+    let hasEmailOrUsername = true;
+    
+    if (isAlumno) {
+      hasEmailOrUsername = DomainValidators.requireAtLeastOne([correo, username]);
+      if (!hasEmailOrUsername) {
+        emailOrUsernameError = "Para Alumno, debe proporcionar correo o usuario";
+      }
+    }
+
+    // Validación fecha nacimiento
+    let fechaNacError = "";
+    let fechaNacValid = true;
+    if (isAlumno) {
+      if (!fechaNac) {
+        fechaNacError = "Fecha de nacimiento obligatoria para Alumno";
+        fechaNacValid = false;
+      } else if (!isAtLeast5Years(fechaNac)) {
+        fechaNacError = "Debe tener al menos 5 años";
+        fechaNacValid = false;
+      }
+    }
+
+    setErrors({
+      nombre: nombreRes.error || '',
+      apellido: apellidoRes.error || '',
+      correo: correoRes.error || '',
+      username: usernameRes.error || '',
+      password: passwordRes.error || '',
+      genero: generoRes.error || '',
+      fechaNac: fechaNacError,
+      emailOrUsername: emailOrUsernameError,
+    });
+
+    setTouched({
+      nombre: true,
+      apellido: true,
+      correo: true,
+      username: true,
+      password: true,
+      fechaNac: true,
+      genero: true,
+    });
+
+    return (
+      nombreRes.isValid &&
+      apellidoRes.isValid &&
+      correoRes.isValid &&
+      usernameRes.isValid &&
+      passwordRes.isValid &&
+      generoRes.isValid &&
+      fechaNacValid &&
+      hasEmailOrUsername
+    );
   }
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    setError(null);
+    setGlobalError(null);
 
-    const err = validate();
-    if (err) {
-      setError(err);
+    if (!validateAll()) {
+      setGlobalError("Por favor, corrige los errores en el formulario");
       return;
     }
 
@@ -147,7 +316,7 @@ export default function UserForm({
       setSaving(true);
       await onSubmit(payload);
     } catch (e: any) {
-      setError(e?.message || "Error al guardar.");
+      setGlobalError(e?.message || "Error al guardar.");
     } finally {
       setSaving(false);
     }
@@ -155,48 +324,52 @@ export default function UserForm({
 
   return (
     <form onSubmit={handleSubmit} className={`space-y-6 ${className}`}>
-      {error && (
-        <div className="rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
-          {error}
+      {globalError && (
+        <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
+          {globalError}
+        </div>
+      )}
+
+      {errors.emailOrUsername && touched.correo && touched.username && (
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
+          {errors.emailOrUsername}
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Nombre */}
-        <div>
-          <label className="block text-sm font-semibold text-slate-300">
-            Nombre(s)
-          </label>
-          <input
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder="Juan Carlos"
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
+        <ValidatedInput
+          label="Nombre(s)"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          onBlur={() => handleBlur('nombre')}
+          error={errors.nombre}
+          touched={touched.nombre}
+          required
+          placeholder="Juan Carlos"
+        />
 
         {/* Apellido */}
-        <div>
-          <label className="block text-sm font-semibold text-slate-300">
-            Apellido(s)
-          </label>
-          <input
-            value={apellido}
-            onChange={(e) => setApellido(e.target.value)}
-            placeholder="Pérez López"
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
+        <ValidatedInput
+          label="Apellido(s)"
+          value={apellido}
+          onChange={(e) => setApellido(e.target.value)}
+          onBlur={() => handleBlur('apellido')}
+          error={errors.apellido}
+          touched={touched.apellido}
+          required
+          placeholder="Pérez López"
+        />
 
         {/* Rol */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
             Rol
           </label>
           <select
             value={rol}
             onChange={(e) => setRol(e.target.value as UserFormOutput["rol"])}
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900/60 px-4 py-3 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
             <option>Alumno</option>
             <option>Docente</option>
@@ -206,24 +379,24 @@ export default function UserForm({
         </div>
 
         {/* Correo */}
-        <div>
-          <label className="block text-sm font-semibold text-slate-300">
-            Correo
-          </label>
-          <input
-            type="email"
-            value={correo}
-            onChange={(e) => setCorreo(e.target.value)}
-            placeholder="correo@ejemplo.com"
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
+        <ValidatedInput
+          label="Correo"
+          type="email"
+          value={correo}
+          onChange={(e) => setCorreo(e.target.value)}
+          onBlur={() => handleBlur('correo')}
+          error={errors.correo}
+          touched={touched.correo}
+          required={rol !== "Alumno"}
+          placeholder="correo@ejemplo.com"
+          helpText={rol === "Alumno" ? "Opcional si tiene usuario" : undefined}
+        />
 
         {/* DatePicker MUI */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
             Fecha de nacimiento{" "}
-            {rol === "Alumno" && <span className="text-rose-400">*</span>}
+            {isAlumno && <span className="text-rose-500">*</span>}
           </label>
           <div className="mt-1">
             <WhiteDatePicker
@@ -234,6 +407,10 @@ export default function UserForm({
               minDate={minDOB}
               maxDate={maxDOB}
               slotProps={{
+                textField: { 
+                  helperText: errors.fechaNac || (isAlumno ? "Debe tener al menos 5 años" : "(opcional)"),
+                  error: touched.fechaNac && !!errors.fechaNac,
+                },
                 popper: {
                   disablePortal: false,
                   sx: { zIndex: 2100 },
@@ -241,71 +418,79 @@ export default function UserForm({
               }}
             />
           </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Debe tener al menos 5 años. {rol !== "Alumno" ? "(opcional)" : ""}
-          </p>
         </div>
 
-        {/* Género (opcional) */}
+        {/* Género (Obligatorio) */}
         <div>
-          <label className="block text-sm font-semibold text-slate-300">
-            Género
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+            Género <span className="text-rose-500">*</span>
           </label>
           <select
             value={genero ?? ""}
-            onChange={(e) =>
-              setGenero((e.target.value || null) as UserFormOutput["genero"])
-            }
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            onChange={(e) => {
+              const val = (e.target.value || null) as UserFormOutput["genero"];
+              setGenero(val);
+              if (touched.genero) {
+                 const res = validateGenero(val);
+                 setErrors(prev => ({ ...prev, genero: res.error || '' }));
+              }
+            }}
+            onBlur={() => handleBlur('genero')}
+            className={`w-full rounded-xl border px-4 py-3 text-base bg-white dark:bg-slate-900/60 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+              touched.genero && errors.genero 
+                ? "border-rose-500 ring-rose-500" 
+                : "border-slate-300 dark:border-slate-700"
+            }`}
           >
-            <option value="">— Selecciona (opcional) —</option>
+            <option value="">— Selecciona —</option>
             <option value="masculino">Masculino</option>
             <option value="femenino">Femenino</option>
           </select>
+          {touched.genero && errors.genero && (
+            <p className="mt-1 text-sm text-rose-500">{errors.genero}</p>
+          )}
         </div>
 
         {/* Username */}
-        <div>
-          <label className="block text-sm font-semibold text-slate-300">
-            Usuario <span className="text-slate-400">(si no tiene email)</span>
-          </label>
-          <input
-            value={username}
-            onChange={(e) => setUsername(normalizeUsername(e.target.value))}
-            placeholder="alumno_123 (a-z, 0-9, _)"
-            className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            pattern="^[a-z0-9_]{3,24}$"
-            title="3–24 caracteres: a–z, 0–9 y guión bajo"
-            autoComplete="username"
-          />
-          <p className="mt-1 text-xs text-slate-400">
-            Debe cumplir: 3–24, a–z, 0–9 y guión bajo.
-          </p>
-        </div>
+        <ValidatedInput
+          label="Usuario"
+          value={username}
+          onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+          onBlur={() => handleBlur('username')}
+          error={errors.username}
+          touched={touched.username}
+          placeholder="alumno_123 (a-z, 0-9, _)"
+          helpText={isAlumno ? "Si no tiene email. 3–24 caracteres: a–z, 0–9 y _" : "Opcional"}
+          autoComplete="username"
+        />
 
         {/* Password (solo creación) */}
         {mode === "create" && (
           <div className="md:col-span-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-sm font-semibold text-slate-300">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                 Contraseña <span className="text-slate-400">(opcional)</span>
               </label>
               <button
                 type="button"
                 onClick={() => setShowPass((s) => !s)}
-                className="text-xs text-indigo-400 hover:text-indigo-300"
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300"
                 aria-pressed={showPass}
               >
                 {showPass ? "Ocultar" : "Mostrar"}
               </button>
             </div>
-            <input
+            <ValidatedInput
+              label="" // Label handled above for custom layout
               type={showPass ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => handleBlur('password')}
+              error={errors.password}
+              touched={touched.password}
               placeholder="Mín. 6 caracteres"
-              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-base text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               autoComplete="new-password"
+              showValidIcon={false} // Custom layout makes icon tricky, simplifying
             />
           </div>
         )}
@@ -315,14 +500,14 @@ export default function UserForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-xl bg-slate-600/40 px-5 py-2.5 text-slate-200 hover:bg-slate-600/60"
+          className="rounded-xl bg-slate-200 dark:bg-slate-600/40 px-5 py-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600/60 transition-colors"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="rounded-xl bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-xl bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
         >
           {saving ? "Guardando..." : "Guardar"}
         </button>

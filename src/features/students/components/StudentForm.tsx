@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import dayjs, { Dayjs } from "dayjs";
 import WhiteDatePicker from "../../../componentes/WhiteDatePicker";
 import ConfirmDialog from "../../../componentes/ConfirmDialog";
+import ValidatedInput from "../../../componentes/ValidatedInput";
+import { validateField, DomainValidators, type ValidationRule } from "../../../lib/validation";
 
 type Genero = "masculino" | "femenino";
 
@@ -15,7 +17,7 @@ type Props = {
     correo?: string;
     email?: string;
     username?: string;
-    fecha_nacimiento?: string | null; // "YYYY-MM-DD" o ISO
+    fecha_nacimiento?: string | null;
     genero?: Genero | null;
   } | null;
   mode: "create" | "edit";
@@ -26,7 +28,7 @@ type Props = {
     email?: string | null;
     username?: string | null;
     password?: string;
-    fecha_nacimiento: string; // YYYY-MM-DD
+    fecha_nacimiento: string;
     genero?: Genero | null;
   }) => Promise<void> | void;
   onCancel: () => void;
@@ -60,6 +62,7 @@ function fmtGenero(g?: Genero | null): string {
 export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props) {
   const isCreate = mode === "create";
 
+  // Estados del formulario
   const [nombres, setNombres] = useState("");
   const [apellidos, setApellidos] = useState("");
   const [email, setEmail] = useState("");
@@ -68,7 +71,29 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
   const [dob, setDob] = useState<Dayjs | null>(null);
   const [genero, setGenero] = useState<Genero | null>(null);
 
-  const [error, setError] = useState<string | null>(null);
+  // Estados de validación
+  const [touched, setTouched] = useState({
+    nombres: false,
+    apellidos: false,
+    email: false,
+    username: false,
+    password: false,
+    dob: false,
+    genero: false,
+  });
+
+  const [errors, setErrors] = useState({
+    nombres: "",
+    apellidos: "",
+    email: "",
+    username: "",
+    password: "",
+    dob: "",
+    genero: "",
+    emailOrUsername: "",
+  });
+
+  const [globalError, setGlobalError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Confirmación
@@ -79,7 +104,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
   const maxDate = useMemo(() => dayjs().subtract(5, "year").endOf("day"), []);
   const minDate = dayjs("1900-01-01");
 
-  // Cargar datos iniciales (edición)
+  // Cargar datos iniciales
   useEffect(() => {
     setNombres((initial?.nombres ?? initial?.nombre ?? "").trim());
     setApellidos((initial?.apellidos ?? initial?.apellido ?? "").trim());
@@ -89,12 +114,134 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
     setDob(parseToDayjs(initial?.fecha_nacimiento));
   }, [initial]);
 
-  function validate(): string | null {
-    if (!nombres.trim() || !apellidos.trim()) return "Nombre y apellido son obligatorios.";
-    if (!email.trim() && !username.trim()) return "Debe tener email o username.";
-    if (!dob) return "La fecha de nacimiento es obligatoria.";
-    if (!isAtLeast5Years(dob)) return "Debe tener al menos 5 años.";
-    return null;
+  // Validación en tiempo real
+  const validateNombres = (value: string) => {
+    const rules: ValidationRule[] = [
+      { type: 'required', message: 'El nombre es obligatorio' },
+      { type: 'minLength', length: 2, message: 'El nombre debe tener al menos 2 caracteres' },
+      { type: 'pattern', regex: /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, message: 'Solo se permiten letras y espacios' },
+    ];
+    return validateField(value, rules);
+  };
+
+  const validateApellidos = (value: string) => {
+    const rules: ValidationRule[] = [
+      { type: 'required', message: 'El apellido es obligatorio' },
+      { type: 'minLength', length: 2, message: 'El apellido debe tener al menos 2 caracteres' },
+      { type: 'pattern', regex: /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, message: 'Solo se permiten letras y espacios' },
+    ];
+    return validateField(value, rules);
+  };
+
+  const validateEmail = (value: string) => {
+    if (!value.trim()) return { isValid: true }; // Opcional si hay username
+    const rules: ValidationRule[] = [
+      { type: 'email', message: 'Ingresa un correo electrónico válido' },
+    ];
+    return validateField(value, rules);
+  };
+
+  const validateUsername = (value: string) => {
+    if (!value.trim()) return { isValid: true }; // Opcional si hay email
+    const rules: ValidationRule[] = [
+      { type: 'username', message: 'Usuario inválido (3-24 caracteres: a-z, 0-9, _)' },
+    ];
+    return validateField(value, rules);
+  };
+
+  const validatePassword = (value: string) => {
+    if (!isCreate) return { isValid: true };
+    if (!value.trim()) return { isValid: true }; // Opcional en creación
+    const rules: ValidationRule[] = [
+      { type: 'minLength', length: 6, message: 'La contraseña debe tener al menos 6 caracteres' },
+    ];
+    return validateField(value, rules);
+  };
+
+  const validateGenero = (value: Genero | null) => {
+    if (!value) return { isValid: false, error: "Debes seleccionar un género" };
+    return { isValid: true };
+  };
+
+  // Handlers de blur para marcar como tocado y validar
+  const handleBlur = (field: keyof typeof touched) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    
+    let result;
+    switch (field) {
+      case 'nombres':
+        result = validateNombres(nombres);
+        setErrors(prev => ({ ...prev, nombres: result.error || '' }));
+        break;
+      case 'apellidos':
+        result = validateApellidos(apellidos);
+        setErrors(prev => ({ ...prev, apellidos: result.error || '' }));
+        break;
+      case 'email':
+        result = validateEmail(email);
+        setErrors(prev => ({ ...prev, email: result.error || '' }));
+        break;
+      case 'username':
+        result = validateUsername(username);
+        setErrors(prev => ({ ...prev, username: result.error || '' }));
+        break;
+      case 'password':
+        result = validatePassword(password);
+        setErrors(prev => ({ ...prev, password: result.error || '' }));
+        break;
+      case 'genero':
+        result = validateGenero(genero);
+        setErrors(prev => ({ ...prev, genero: result.error || '' }));
+        break;
+    }
+  };
+
+  // Validación completa del formulario
+  function validateAll(): boolean {
+    const nombresResult = validateNombres(nombres);
+    const apellidosResult = validateApellidos(apellidos);
+    const emailResult = validateEmail(email);
+    const usernameResult = validateUsername(username);
+    const passwordResult = validatePassword(password);
+    const generoResult = validateGenero(genero);
+
+    // Validación especial: debe tener email O username
+    const hasEmailOrUsername = DomainValidators.requireAtLeastOne([email, username]);
+    
+    // Validación de fecha de nacimiento
+    const dobValid = dob && isAtLeast5Years(dob);
+
+    setErrors({
+      nombres: nombresResult.error || '',
+      apellidos: apellidosResult.error || '',
+      email: emailResult.error || '',
+      username: usernameResult.error || '',
+      password: passwordResult.error || '',
+      genero: generoResult.error || '',
+      dob: !dobValid ? 'La fecha de nacimiento es obligatoria y debe ser de al menos 5 años atrás' : '',
+      emailOrUsername: !hasEmailOrUsername ? 'Debe proporcionar un correo electrónico o un nombre de usuario' : '',
+    });
+
+    setTouched({
+      nombres: true,
+      apellidos: true,
+      email: true,
+      username: true,
+      password: true,
+      genero: true,
+      dob: true,
+    });
+
+    return (
+      nombresResult.isValid &&
+      apellidosResult.isValid &&
+      emailResult.isValid &&
+      usernameResult.isValid &&
+      passwordResult.isValid &&
+      generoResult.isValid &&
+      dobValid &&
+      hasEmailOrUsername
+    );
   }
 
   function buildPayload() {
@@ -147,20 +294,21 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setGlobalError(null);
 
-    const v = validate();
-    if (v) return setError(v);
+    if (!validateAll()) {
+      setGlobalError("Por favor, corrige los errores en el formulario");
+      return;
+    }
 
     const payload = buildPayload();
 
     if (isCreate) {
-      // Crear: sin confirmación
       try {
         setSaving(true);
         await onSubmit(payload);
       } catch (err: any) {
-        setError(err?.message || "Error al guardar alumno.");
+        setGlobalError(err?.message || "Error al guardar alumno.");
       } finally {
         setSaving(false);
       }
@@ -170,7 +318,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
     // Editar: confirmación si hay cambios
     const diffs = computeDiff(payload);
     if (diffs.length === 0) {
-      return; // Sin cambios: no abrimos diálogo
+      return;
     }
     setDiffList(diffs);
     setPendingPayload(payload);
@@ -185,7 +333,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
       setConfirmOpen(false);
       setPendingPayload(null);
     } catch (err: any) {
-      setError(err?.message || "Error al guardar alumno.");
+      setGlobalError(err?.message || "Error al guardar alumno.");
     } finally {
       setSaving(false);
     }
@@ -194,104 +342,134 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-5">
-        {error && (
-          <div className="rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
-            {error}
+        {globalError && (
+          <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
+            {globalError}
+          </div>
+        )}
+
+        {errors.emailOrUsername && touched.email && touched.username && (
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
+            {errors.emailOrUsername}
           </div>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium dark:text-white">Nombre(s)</label>
-            <input
-              className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
-              value={nombres}
-              onChange={(e) => setNombres(e.target.value)}
-              autoComplete="given-name"
-            />
-          </div>
+          <ValidatedInput
+            label="Nombre(s)"
+            value={nombres}
+            onChange={(e) => setNombres(e.target.value)}
+            onBlur={() => handleBlur('nombres')}
+            error={errors.nombres}
+            touched={touched.nombres}
+            required
+            autoComplete="given-name"
+            placeholder="Ej: Juan Carlos"
+          />
 
-          <div>
-            <label className="text-sm font-medium dark:text-white">Apellido(s)</label>
-            <input
-              className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
-              value={apellidos}
-              onChange={(e) => setApellidos(e.target.value)}
-              autoComplete="family-name"
-            />
-          </div>
+          <ValidatedInput
+            label="Apellido(s)"
+            value={apellidos}
+            onChange={(e) => setApellidos(e.target.value)}
+            onBlur={() => handleBlur('apellidos')}
+            error={errors.apellidos}
+            touched={touched.apellidos}
+            required
+            autoComplete="family-name"
+            placeholder="Ej: Pérez García"
+          />
 
-          <div>
-            <label className="text-sm font-medium dark:text-white">Correo</label>
-            <input
-              type="email"
-              className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-            />
-          </div>
+          <ValidatedInput
+            label="Correo electrónico"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => handleBlur('email')}
+            error={errors.email}
+            touched={touched.email}
+            helpText="Opcional si proporciona un usuario"
+            autoComplete="email"
+            placeholder="alumno@ejemplo.com"
+          />
 
-          <div>
-            <label className="text-sm font-medium dark:text-white">Usuario (si no tiene email)</label>
-            <input
-              className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="alumno_123"
-              autoComplete="username"
-              pattern="^[a-z0-9_]{3,24}$"
-              title="3–24 caracteres: a–z, 0–9 y guión bajo"
-            />
-          </div>
+          <ValidatedInput
+            label="Usuario"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase())}
+            onBlur={() => handleBlur('username')}
+            error={errors.username}
+            touched={touched.username}
+            helpText="3-24 caracteres: a-z, 0-9, _"
+            autoComplete="username"
+            placeholder="alumno_123"
+          />
 
-          {/* Fecha de nacimiento (WhiteDatePicker) */}
-          <div>
-            <span className="text-sm font-medium dark:text-white">Fecha de nacimiento *</span>
-            <div className="mt-1">
-              <WhiteDatePicker
-                value={dob}
-                onChange={setDob}
-                maxDate={maxDate}
-                minDate={minDate}
-                format="DD/MM/YYYY"
-                slotProps={{
-                  textField: { helperText: "Debe tener al menos 5 años." },
-                  popper: { disablePortal: false },
-                }}
-              />
-            </div>
+          {/* Fecha de nacimiento */}
+          <div className="sm:col-span-2">
+            <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+              Fecha de nacimiento <span className="text-rose-500">*</span>
+            </span>
+            <WhiteDatePicker
+              value={dob}
+              onChange={setDob}
+              maxDate={maxDate}
+              minDate={minDate}
+              format="DD/MM/YYYY"
+              slotProps={{
+                textField: { 
+                  helperText: errors.dob || "Debe tener al menos 5 años",
+                  error: touched.dob && !!errors.dob,
+                },
+                popper: { disablePortal: false },
+              }}
+            />
           </div>
 
           {/* Género */}
           <div>
-            <label className="text-sm font-medium">Género (opcional)</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+              Género <span className="text-rose-500">*</span>
+            </label>
             <select
               value={genero ?? ""}
-              onChange={(e) => setGenero((e.target.value || "") as Genero | null)}
-              className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
+              onChange={(e) => {
+                const val = (e.target.value || null) as Genero | null;
+                setGenero(val);
+                if (touched.genero) {
+                   const res = validateGenero(val);
+                   setErrors(prev => ({ ...prev, genero: res.error || '' }));
+                }
+              }}
+              onBlur={() => handleBlur('genero')}
+              className={`w-full rounded-xl border px-4 py-3 text-base bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                touched.genero && errors.genero 
+                  ? "border-rose-500 ring-rose-500" 
+                  : "border-slate-300 dark:border-slate-600"
+              }`}
             >
-              <option value="">— Selecciona (opcional) —</option>
+              <option value="">— Selecciona —</option>
               <option value="masculino">Masculino</option>
               <option value="femenino">Femenino</option>
             </select>
+            {touched.genero && errors.genero && (
+              <p className="mt-1 text-sm text-rose-500">{errors.genero}</p>
+            )}
           </div>
 
           {/* Password solo en creación */}
           {isCreate && (
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium">
-                Contraseña <span className="text-slate-400">(opcional)</span>
-              </label>
-              <input
-                type="password"
-                className="mt-1 w-full rounded-xl border px-4 py-3 text-base text-white dark:text-white bg-white/10 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
-            </div>
+            <ValidatedInput
+              label="Contraseña"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => handleBlur('password')}
+              error={errors.password}
+              touched={touched.password}
+              helpText="Opcional. Si no se proporciona, se generará un código temporal"
+              autoComplete="new-password"
+              placeholder="••••••••"
+            />
           )}
         </div>
 
@@ -299,21 +477,21 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-slate-600 bg-slate-800/60 px-5 py-2.5 font-semibold text-slate-200 hover:bg-slate-700"
+            className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-5 py-2.5 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="rounded-xl bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
           >
-            {saving ? (isCreate ? "Guardando…" : "Guardando…") : isCreate ? "Crear" : "Guardar"}
+            {saving ? "Guardando…" : isCreate ? "Crear alumno" : "Guardar cambios"}
           </button>
         </div>
       </form>
 
-      {/* Diálogo de confirmación (solo edición) */}
+      {/* Diálogo de confirmación */}
       <ConfirmDialog
         open={confirmOpen}
         onClose={() => (!saving ? setConfirmOpen(false) : undefined)}
@@ -322,7 +500,6 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
         title="Confirmar cambios"
         confirmText="Guardar cambios"
         cancelText="Seguir editando"
-        // Puedes dejar solo description o solo children, o ambos:
         description="Estás a punto de actualizar los datos del alumno. Revisa el resumen de cambios:"
         intent="default"
       >

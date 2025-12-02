@@ -159,7 +159,13 @@ export default function ProfilePage() {
       setCurPwd(""); setNewPwd(""); setNewPwd2("");
       setConfirmPassOpen(false);
     } catch (e: any) {
-      showNotification(e?.message || "No se pudo cambiar la contraseña", "error");
+      let msg = e?.message || "No se pudo cambiar la contraseña";
+      if (msg.includes("BAD_CURRENT_PASSWORD")) {
+        msg = "La contraseña actual no es correcta.";
+      } else if (msg.includes("WEAK_PASSWORD")) {
+        msg = "La nueva contraseña es muy débil.";
+      }
+      showNotification(msg, "error");
     } finally {
       setChangingPwd(false);
     }
@@ -262,13 +268,24 @@ export default function ProfilePage() {
         <form onSubmit={requestChangePwd} className="grid gap-3">
           {!mustChangePwd && (
             <label className="grid gap-1">
-              <span className="text-sm dark:text-slate-200">Contraseña actual</span>
+              <span className="text-sm dark:text-slate-200">
+                Contraseña actual <span className="text-rose-500">*</span>
+              </span>
               <input
                 type="password"
-                className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 bg-white text-slate-900 dark:text-slate-200 dark:bg-slate-900/60"
+                className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 bg-white text-slate-900 dark:text-slate-200 dark:bg-slate-900/60 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 value={curPwd}
                 onChange={(e) => setCurPwd(e.target.value)}
+                placeholder="Ingresa tu contraseña actual"
               />
+              {curPwd && curPwd.length >= 6 && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Ahora puedes ingresar tu nueva contraseña
+                </p>
+              )}
             </label>
           )}
 
@@ -279,29 +296,56 @@ export default function ProfilePage() {
           )}
 
           <label className="grid gap-1">
-            <span className="text-sm dark:text-slate-200">Nueva contraseña</span>
+            <span className="text-sm dark:text-slate-200">
+              Nueva contraseña <span className="text-rose-500">*</span>
+            </span>
             <input
               type="password"
-              className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 bg-white text-slate-900 dark:text-slate-200 dark:bg-slate-900/60"
+              className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 bg-white text-slate-900 dark:text-slate-200 dark:bg-slate-900/60 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               value={newPwd}
               onChange={(e) => setNewPwd(e.target.value)}
+              disabled={!mustChangePwd && (!curPwd || curPwd.length < 6)}
+              placeholder={!mustChangePwd && (!curPwd || curPwd.length < 6) ? "Primero ingresa tu contraseña actual" : "Mínimo 6 caracteres"}
             />
+            {newPwd && newPwd.length < 6 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                La contraseña debe tener al menos 6 caracteres
+              </p>
+            )}
           </label>
 
           <label className="grid gap-1">
-            <span className="text-sm dark:text-slate-200">Confirmar nueva contraseña</span>
+            <span className="text-sm dark:text-slate-200">
+              Confirmar nueva contraseña <span className="text-rose-500">*</span>
+            </span>
             <input
               type="password"
-              className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 bg-white text-slate-900 dark:text-slate-200 dark:bg-slate-900/60"
+              className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 bg-white text-slate-900 dark:text-slate-200 dark:bg-slate-900/60 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               value={newPwd2}
               onChange={(e) => setNewPwd2(e.target.value)}
+              disabled={!mustChangePwd && (!curPwd || curPwd.length < 6)}
+              placeholder={!mustChangePwd && (!curPwd || curPwd.length < 6) ? "Primero ingresa tu contraseña actual" : "Repite la nueva contraseña"}
             />
+            {newPwd2 && newPwd !== newPwd2 && (
+              <p className="text-xs text-rose-600 dark:text-rose-400">
+                Las contraseñas no coinciden
+              </p>
+            )}
+            {newPwd2 && newPwd === newPwd2 && newPwd.length >= 6 && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Las contraseñas coinciden
+              </p>
+            )}
           </label>
 
-          {/* Mensajes eliminados */}
-
           <div className="mt-1">
-            <button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2">
+            <button 
+              className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={!mustChangePwd && (!curPwd || curPwd.length < 6)}
+            >
               Actualizar contraseña
             </button>
           </div>
