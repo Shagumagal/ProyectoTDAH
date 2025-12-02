@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GAME_URL } from "./gameUrl";
 import { ROUTES } from "../../lib/routes";
+import ConfirmDialog from "../../componentes/ConfirmDialog";
 
 function parseJwt(token: string): any {
   try {
@@ -40,6 +41,7 @@ function getUserInfoFromToken(token: string | null) {
 export const GamePage: React.FC = () => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
 
   const token = localStorage.getItem("auth_token");
   const participantId = useMemo(() => getParticipantIdFromToken(token), [token]);
@@ -59,6 +61,17 @@ export const GamePage: React.FC = () => {
       navigator.clipboard.writeText(gameUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleStartGame = () => {
+    setShowConsentDialog(true);
+  };
+
+  const handleConfirmStart = () => {
+    if (gameUrl) {
+      window.open(gameUrl, "_blank");
+      setShowConsentDialog(false);
     }
   };
 
@@ -138,7 +151,7 @@ export const GamePage: React.FC = () => {
           <div className="space-y-4">
             <button
               className="w-full px-6 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold text-lg transition-all transform hover:scale-[1.02] shadow-lg"
-              onClick={() => window.open(gameUrl, "_blank")}
+              onClick={handleStartGame}
             >
               <div className="flex items-center justify-center gap-3">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,6 +195,17 @@ export const GamePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Consent Dialog */}
+      <ConfirmDialog
+        open={showConsentDialog}
+        onClose={() => setShowConsentDialog(false)}
+        onConfirm={handleConfirmStart}
+        title="Consentimiento Informado"
+        description="Estás a punto de iniciar un juego interactivo diseñado para evaluar indicadores relacionados con el TDAH (Trastorno por Déficit de Atención e Hiperactividad). Los resultados son métricas de apoyo, NO un diagnóstico médico. Esta herramienta NO reemplaza una evaluación clínica profesional. Los datos ayudan al psicólogo a obtener información complementaria. Un diagnóstico de TDAH requiere evaluación integral por un especialista. Tus datos están protegidos y son confidenciales. Solo profesionales autorizados dentro de la institución del colegio Insituto Americano pueden acceder a los resultados."
+        confirmText="Aceptar y continuar"
+        cancelText="Cancelar"
+      />
     </div>
   );
 };

@@ -140,28 +140,29 @@ export default function UsersPage() {
   return (
     <section className="grid gap-6">
       <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Usuarios</h1>
             <p className="text-sm text-slate-600 dark:text-slate-300">Gestiona alumnos, docentes y psicólogos.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row gap-3">
             <SearchInput
               value={q}
-              onChange={(v) => setQ(v)}              // ✅ wrapper para evitar error de tipos
-              className="w-72 sm:w-96"
-              placeholder="Buscar por nombre, email…"
-            // ❌ quité onDebouncedChange para evitar TS error (si no lo usas)
+              onChange={(v) => setQ(v)}
+              className="w-full sm:w-64 lg:w-80"
+              placeholder="Buscar..."
             />
-            <button
-              onClick={() => setDialog({ mode: "create" })}
-              className="rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold shadow-lg shadow-indigo-600/20"
-            >
-              Nuevo usuario
-            </button>
-            <button className="rounded-xl px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold">
-              Importar CSV
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDialog({ mode: "create" })}
+                className="flex-1 sm:flex-none whitespace-nowrap rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold shadow-lg shadow-indigo-600/20"
+              >
+                Nuevo usuario
+              </button>
+              <button className="flex-1 sm:flex-none whitespace-nowrap rounded-xl px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-200 dark:hover:bg-slate-700">
+                Importar CSV
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -196,57 +197,114 @@ export default function UsersPage() {
               <button className="underline" onClick={() => setQ("")}>Limpiar</button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-600 dark:text-slate-300">
-                    <th className="py-2 pr-4">Nombre</th>
-                    <th className="py-2 pr-4">Rol</th>
-                    <th className="py-2 pr-4">Correo</th>
-                    <th className="py-2 pr-4">Estado</th>
-                    <th className="py-2">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-100">
-                  {rows.map((u) => (
-                    <tr key={u.id}>
-                      <td className="py-3 pr-4">{u.nombre} {u.apellido}</td>
-                      <td className="py-3 pr-4">{u.rol}</td>
-                      <td className="py-3 pr-4">{u.correo ?? <span className="text-slate-400">—</span>}</td>
-                      <td className="py-3 pr-4">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${u.estado === "Activo"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                              : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                            }`}
-                        >
-                          {u.estado}
-                        </span>
-                      </td>
-                      <td className="py-3">
+            <>
+              {/* Vista Móvil: Tarjetas */}
+              <div className="grid grid-cols-1 gap-4 md:hidden">
+                {rows.map((u) => (
+                  <div key={u.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white">{u.nombre} {u.apellido}</div>
+                        <div className="text-sm text-slate-500 dark:text-slate-400">{u.rol}</div>
+                      </div>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${u.estado === "Activo"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                          }`}
+                      >
+                        {u.estado}
+                      </span>
+                    </div>
+                    
+                    <div className="text-sm text-slate-600 dark:text-slate-300 break-all">
+                      {u.correo ? (
                         <div className="flex items-center gap-2">
-                          <button
-                            className="rounded-lg px-3 py-1 bg-slate-100 dark:bg-slate-800"
-                            onClick={() => setDialog({ mode: "edit", user: u })}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => toggleEstado(u.id)}
-                            className={`rounded-lg px-3 py-1 ${u.estado === "Activo"
-                                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          <span>📧</span>
+                          <span>{u.correo}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <span>📧</span>
+                          <span>Sin correo</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex gap-2">
+                      <button
+                        className="flex-1 rounded-lg px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium"
+                        onClick={() => setDialog({ mode: "edit", user: u })}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => toggleEstado(u.id)}
+                        className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${u.estado === "Activo"
+                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          }`}
+                      >
+                        {u.estado === "Activo" ? "Inactivar" : "Activar"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Vista Escritorio: Tabla */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-600 dark:text-slate-300">
+                      <th className="py-2 pr-4">Nombre</th>
+                      <th className="py-2 pr-4">Rol</th>
+                      <th className="py-2 pr-4">Correo</th>
+                      <th className="py-2 pr-4">Estado</th>
+                      <th className="py-2">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-100">
+                    {rows.map((u) => (
+                      <tr key={u.id}>
+                        <td className="py-3 pr-4">{u.nombre} {u.apellido}</td>
+                        <td className="py-3 pr-4">{u.rol}</td>
+                        <td className="py-3 pr-4">{u.correo ?? <span className="text-slate-400">—</span>}</td>
+                        <td className="py-3 pr-4">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${u.estado === "Activo"
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                               }`}
                           >
-                            {u.estado === "Activo" ? "Inactivar" : "Activar"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                            {u.estado}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="rounded-lg px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                              onClick={() => setDialog({ mode: "edit", user: u })}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => toggleEstado(u.id)}
+                              className={`rounded-lg px-3 py-1 transition-colors ${u.estado === "Activo"
+                                  ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-900/60"
+                                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60"
+                                }`}
+                            >
+                              {u.estado === "Activo" ? "Inactivar" : "Activar"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
