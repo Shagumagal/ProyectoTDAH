@@ -53,6 +53,8 @@ app.use("/me", meRoutes);
 app.use("/users", userRoutes);
 app.use("/game", gameRoutes);
 app.use("/resultados", resultadosRouter);
+app.use("/api", require("./routes/metricas-hiperactividad"));
+
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

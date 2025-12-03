@@ -82,7 +82,7 @@ router.post("/", async (req, res) => {
     ];
 
     const r = await query(sql, params);
-    return res.status(201).json({ status: "ok", resultado_id: r.rows[0].id, sesion_id });
+    return res.status(201).json({ message: "Guardado", id: r.rows[0].id, sesion_id });
   } catch (e) {
     console.error("POST /resultados error:", e);
     return res.status(500).json({ error: e.message });
