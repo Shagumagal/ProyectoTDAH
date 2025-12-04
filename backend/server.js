@@ -15,11 +15,11 @@ const gameRoutes = require("./routes/game");
 const app = express();
 
 // --- CORS ---
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "https://proyecto-tdah.vercel.app", // EXACTO como sale en el navegador
-];
+const allowedOrigins = (process.env.CORS_ORIGINS?.split(',') ?? [
+  "http://localhost:5175",
+  "http://127.0.0.1:5175",
+  "https://proyecto-tdah.vercel.app"
+]).map(o => o.trim());
 
 app.use(
   cors({
