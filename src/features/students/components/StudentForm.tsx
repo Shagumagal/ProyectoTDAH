@@ -167,7 +167,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
   const handleBlur = (field: keyof typeof touched) => {
     setTouched(prev => ({ ...prev, [field]: true }));
     
-    let result;
+    let result: { isValid: boolean; error?: string };
     switch (field) {
       case 'nombres':
         result = validateNombres(nombres);
@@ -209,7 +209,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
     const hasEmailOrUsername = DomainValidators.requireAtLeastOne([email, username]);
     
     // Validación de fecha de nacimiento
-    const dobValid = dob && isAtLeast5Years(dob);
+    const dobValid = dob ? isAtLeast5Years(dob) : false;
 
     setErrors({
       nombres: nombresResult.error || '',

@@ -188,7 +188,7 @@ export default function UserForm({
     return validateField(value, rules);
   };
 
-  const validateGenero = (value: string | null) => {
+  const validateGenero = (value: string | null | undefined) => {
     if (!value) return { isValid: false, error: "Debes seleccionar un género" };
     return { isValid: true };
   };
@@ -197,7 +197,7 @@ export default function UserForm({
   const handleBlur = (field: keyof typeof touched) => {
     setTouched(prev => ({ ...prev, [field]: true }));
     
-    let result;
+    let result: { isValid: boolean; error?: string };
     switch (field) {
       case 'nombre':
         result = validateNombre(nombre);

@@ -1,7 +1,7 @@
 // src/features/game/GamePage.tsx
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { GAME_URL } from "./gameUrl";
+import { API_URL } from "../../lib/http";
 import { ROUTES } from "../../lib/routes";
 import ConfirmDialog from "../../componentes/ConfirmDialog";
 
@@ -52,8 +52,9 @@ export const GamePage: React.FC = () => {
     const params = new URLSearchParams({
       token,
       pid: participantId,
+      apiUrl: API_URL,
     });
-    return `${GAME_URL}?${params.toString()}`;
+    return `/game/index.html?${params.toString()}`;
   }, [token, participantId]);
 
   const handleCopyUrl = () => {
