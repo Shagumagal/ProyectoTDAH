@@ -167,7 +167,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
   const handleBlur = (field: keyof typeof touched) => {
     setTouched(prev => ({ ...prev, [field]: true }));
     
-    let result: { isValid: boolean; error?: string };
+    let result: { isValid: boolean; error?: string } = { isValid: true };
     switch (field) {
       case 'nombres':
         result = validateNombres(nombres);
@@ -240,7 +240,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
       passwordResult.isValid &&
       generoResult.isValid &&
       dobValid &&
-      hasEmailOrUsername
+      !!hasEmailOrUsername
     );
   }
 

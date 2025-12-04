@@ -197,7 +197,7 @@ export default function UserForm({
   const handleBlur = (field: keyof typeof touched) => {
     setTouched(prev => ({ ...prev, [field]: true }));
     
-    let result: { isValid: boolean; error?: string };
+    let result: { isValid: boolean; error?: string } = { isValid: true };
     switch (field) {
       case 'nombre':
         result = validateNombre(nombre);
