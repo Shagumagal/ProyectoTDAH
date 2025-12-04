@@ -23,3 +23,8 @@ coverage/
 Thumbs.db
 docker-compose.override.yml
 *.local.yml
+
+# Unity WebGL del juego TDAH - NO subir la build pesada
+public/game/Build/
+public/game/Build/*
+public/game/build/

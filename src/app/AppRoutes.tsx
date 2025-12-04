@@ -117,7 +117,7 @@ export default function AppRoutes() {
                 <Route
                   path={ROUTES.resultados}
                   element={
-                    <ProtectedRoute allow={["admin", "profesor", "psicologo"]}>
+                    <ProtectedRoute allow={["admin", "profesor", "psicologo", "estudiante"]}>
                       <ResultsPage />
                     </ProtectedRoute>
                   }

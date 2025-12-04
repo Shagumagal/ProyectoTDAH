@@ -7,6 +7,7 @@ import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   LineChart, Line, XAxis, YAxis, Tooltip as RTooltip,
 } from "recharts";
+import { generatePDF } from "../utils/pdfGenerator";
 
 /* =========================
    UI STUBS (sin shadcn/ui)
@@ -87,55 +88,11 @@ export const Tooltip: React.FC<{ children?: React.ReactNode }> = ({ children }) 
 export const TooltipTrigger: React.FC<{ asChild?: boolean; children?: React.ReactNode }> = ({ children }) => <>{children}</>;
 export const TooltipContent: React.FC<{ className?: string; children?: React.ReactNode }> = ({ children }) => <>{children}</>;
 
-/* =========================
-   Tipos de datos
-   ========================= */
-export type GameBase = {
-  accuracy: number;           // 0–1
-  commissionRate: number;     // 0–1
-  omissionRate: number;       // 0–1
-  medianRT: number;           // s
-  p95RT: number;              // s
-  cvRT: number;               // std/mean
-};
-
-export type GoNoGoMetrics = GameBase & {
-  fastGuessRate?: number;
-  lapsesRate?: number;
-  vigilanceDecrement?: number;
-};
-
-export type StopSignalMetrics = GameBase & {
-  stopFailureRate: number;
-  ssrt?: number;
-};
-
-export type StroopMetrics = {
-  deltaInterference: number;
-  accuracy: number;
-};
-
-export type TowerOfLondonMetrics = {
-  planLatency: number;
-  excessMoves: number;
-  ruleViolations: number;
-};
-
-export type Alumno = {
-  id: string;
-  nombre: string;
-  edad?: number;
-  curso?: string;
-};
-
-export type ResultadosAlumno = {
-  alumno: Alumno;
-  fecha: string; // ISO
-  goNoGo: GoNoGoMetrics;
-  stopSignal: StopSignalMetrics;
-  stroop?: StroopMetrics;
-  tol?: TowerOfLondonMetrics;
-};
+import type {
+  ResultadosAlumno,
+  Evidence,
+  TowerOfLondonMetrics
+} from "../types";
 
 /* =========================
    Datos DEMO
@@ -153,113 +110,11 @@ const DEMO: ResultadosAlumno = {
     medianRT: 0.45, p95RT: 0.88, cvRT: 0.26,
     stopFailureRate: 0.46, ssrt: 0.26,
   },
-  stroop: { deltaInterference: 0.21, accuracy: 0.86 },
+  // stroop: { deltaInterference: 0.21, accuracy: 0.86 },
   tol: { planLatency: 3.4, excessMoves: 2, ruleViolations: 0 },
 };
 
-/* =========================
-   Umbrales/Reglas
-   ========================= */
-const RULES = {
-  commission: { weak: 0.12, mod: 0.18, strong: 0.28 },
-  omission:   { weak: 0.10, mod: 0.18, strong: 0.28 },
-  cvRT:       { weak: 0.18, mod: 0.24, strong: 0.30 },
-  vigDec:     { weak: 0.06, mod: 0.10, strong: 0.16 },
-  stopFail:   { weak: 0.30, mod: 0.40, strong: 0.50 },
-  stroopDelta:{ weak: 0.15, mod: 0.25, strong: 0.35 },
-  tolMoves:   { weak: 1, mod: 2, strong: 4 },
-  planLatency:{ weak: 2.5, mod: 4.0, strong: 6.0 },
-};
-
-export type Evidence = "sin" | "debil" | "moderada" | "fuerte";
-function scoreToEvidence(value: number, bands: { weak: number; mod: number; strong: number }): Evidence {
-  if (value >= bands.strong) return "fuerte";
-  if (value >= bands.mod)    return "moderada";
-  if (value >= bands.weak)   return "debil";
-  return "sin";
-}
-
-/* =========================
-   Mapeo DSM-5 heurístico
-   ========================= */
-type Criterio = {
-  id: string;
-  dominio: "Desatención" | "Hiperactividad/Impulsividad";
-  label: string;
-  medidoPor: string[];
-  evidencia: Evidence;
-  nota?: string;
-};
-
-function inferDSM5(r: ResultadosAlumno): Criterio[] {
-  const g = r.goNoGo, s = r.stopSignal, st = r.stroop, tl = r.tol;
-
-  const evCommission = scoreToEvidence(((g?.commissionRate ?? 0) + (s?.commissionRate ?? 0)) / 2, RULES.commission);
-  const evOmission   = scoreToEvidence(((g?.omissionRate   ?? 0) + (s?.omissionRate   ?? 0)) / 2, RULES.omission);
-  const evCV         = scoreToEvidence(Math.max(g?.cvRT ?? 0, s?.cvRT ?? 0), RULES.cvRT);
-  const evVig        = scoreToEvidence(g?.vigilanceDecrement ?? 0, RULES.vigDec);
-  const evStop       = scoreToEvidence(s?.stopFailureRate ?? 0, RULES.stopFail);
-  const evStroop     = st ? scoreToEvidence(st.deltaInterference, RULES.stroopDelta) : "sin";
-  const evOrg: Evidence = tl
-    ? (tl.excessMoves >= RULES.tolMoves.strong || tl.planLatency >= RULES.planLatency.strong) ? "fuerte"
-    : (tl.excessMoves >= RULES.tolMoves.mod    || tl.planLatency >= RULES.planLatency.mod)    ? "moderada"
-    : (tl.excessMoves >= RULES.tolMoves.weak   || tl.planLatency >= RULES.planLatency.weak)   ? "debil"
-    : "sin"
-    : "sin";
-
-  const A1: Criterio[] = [
-    { id: "A1-1", dominio: "Desatención", label: "Comete errores por descuido / falta de atención a detalles",
-      medidoPor: ["Comisiones (Go/No-Go)", "Comisiones (Stop)", "Interferencia Stroop"],
-      evidencia: maxEvidence([evCommission, evStroop]),
-      nota: "Comisiones e interferencia sugieren fallos de control de respuesta y atención a detalles.",
-    },
-    { id: "A1-2", dominio: "Desatención", label: "Dificultad para mantener la atención",
-      medidoPor: ["CV-RT (variabilidad)", "Vigilance decrement"],
-      evidencia: maxEvidence([evCV, evVig]),
-    },
-    { id: "A1-3", dominio: "Desatención", label: "Parece no escuchar cuando se le habla directamente",
-      medidoPor: ["Omisiones (Go/No-Go, Stop)"], evidencia: evOmission,
-      nota: "Omisiones elevadas pueden reflejar desconexión atencional.",
-    },
-    { id: "A1-4", dominio: "Desatención", label: "No sigue instrucciones / no termina tareas",
-      medidoPor: ["Vigilance decrement", "Omisiones tardías"], evidencia: evVig },
-    { id: "A1-5", dominio: "Desatención", label: "Dificultad para organizar tareas/actividades",
-      medidoPor: ["Torre de Londres: movimientos extra / latencia de planificación"], evidencia: evOrg },
-    { id: "A1-6", dominio: "Desatención", label: "Evita tareas que requieren esfuerzo mental sostenido",
-      medidoPor: ["Vigilance decrement"], evidencia: evVig },
-    { id: "A1-7", dominio: "Desatención", label: "Pierde cosas necesarias para tareas",
-      medidoPor: ["Stop"], evidencia: "sin" },
-    { id: "A1-8", dominio: "Desatención", label: "Se distrae fácilmente por estímulos externos",
-      medidoPor: ["CV-RT", "p95 RT"], evidencia: evCV },
-    { id: "A1-9", dominio: "Desatención", label: "Olvida actividades diarias",
-      medidoPor: ["No medido por juegos actuales"], evidencia: "sin" },
-  ];
-
-  const A2: Criterio[] = [
-    { id: "A2-1", dominio: "Hiperactividad/Impulsividad", label: "Se mueve inquieto con manos/pies", medidoPor: ["No medido"], evidencia: "sin" },
-    { id: "A2-2", dominio: "Hiperactividad/Impulsividad", label: "Se levanta cuando debe estar sentado", medidoPor: ["No medido"], evidencia: "sin" },
-    { id: "A2-3", dominio: "Hiperactividad/Impulsividad", label: "Corre o trepa inapropiadamente", medidoPor: ["No medido"], evidencia: "sin" },
-    { id: "A2-4", dominio: "Hiperactividad/Impulsividad", label: "Incapaz de jugar tranquilamente", medidoPor: ["No medido"], evidencia: "sin" },
-    { id: "A2-5", dominio: "Hiperactividad/Impulsividad", label: "\"En marcha\"; como impulsado por un motor",
-      medidoPor: ["CV-RT elevada (indicio)", "Fast guesses"],
-      evidencia: maxEvidence([evCV, scoreToEvidence(g?.fastGuessRate ?? 0, { weak: 0.04, mod: 0.07, strong: 0.12 })]) },
-    { id: "A2-6", dominio: "Hiperactividad/Impulsividad", label: "Habla en exceso", medidoPor: ["No medido"], evidencia: "sin" },
-    { id: "A2-7", dominio: "Hiperactividad/Impulsividad", label: "Responde antes de terminar la pregunta (impulsividad)",
-      medidoPor: ["Comisiones (Go/No-Go)", "Fallas de stop (SST)"], evidencia: maxEvidence([evCommission, evStop]) },
-    { id: "A2-8", dominio: "Hiperactividad/Impulsividad", label: "Dificultad para esperar turno",
-      medidoPor: ["Fallas de stop (SST)"], evidencia: evStop },
-    { id: "A2-9", dominio: "Hiperactividad/Impulsividad", label: "Interrumpe o se inmiscuye",
-      medidoPor: ["No medido"], evidencia: "sin" },
-  ];
-
-  return [...A1, ...A2];
-}
-function maxEvidence(evs: Evidence[]): Evidence {
-  if (evs.includes("fuerte"))   return "fuerte";
-  if (evs.includes("moderada")) return "moderada";
-  if (evs.includes("debil"))    return "debil";
-  return "sin";
-}
+import { inferDSM5, RULES } from "../utils/dsm5";
 
 /* =========================
    Utilidades UI
@@ -299,6 +154,10 @@ function clamp01(v: number) { return Math.max(0, Math.min(1, v)); }
 /* =========================
    Riesgo y helpers
    ========================= */
+import type { HyperactivityMetrics } from "../types";
+
+
+
 function riskFromTriad(a: number, b: number, c: number) {
   const m = (a + b + c) / 3;
   if (m >= 0.4) return "alto" as const;
@@ -317,6 +176,9 @@ function riskVariant(r: ReturnType<typeof riskFromTriad> | "bajo" | "medio" | "a
 }
 function scoreLevel(e: Evidence) { return e === "fuerte" ? "alto" : e === "moderada" ? "medio" : "bajo"; }
 function evTo(tl: TowerOfLondonMetrics): Evidence {
+  // Ajuste: Si no hay errores (excessMoves == 0), la latencia alta es planificación reflexiva, no riesgo.
+  if (tl.excessMoves === 0) return "sin";
+
   if (tl.excessMoves >= RULES.tolMoves.strong || tl.planLatency >= RULES.planLatency.strong) return "fuerte";
   if (tl.excessMoves >= RULES.tolMoves.mod    || tl.planLatency >= RULES.planLatency.mod)    return "moderada";
   if (tl.excessMoves >= RULES.tolMoves.weak   || tl.planLatency >= RULES.planLatency.weak)   return "debil";
@@ -324,32 +186,117 @@ function evTo(tl: TowerOfLondonMetrics): Evidence {
 }
 
 /* =========================
+   Componente Tarjeta Hiperactividad
+   ========================= */
+import { MousePointer2, Zap, Activity as ActivityIcon } from "lucide-react";
+
+const HyperactivityCard = ({ data }: { data?: HyperactivityMetrics }) => {
+  if (!data) return null;
+
+  // Normalizar valores para barras de progreso (ejemplos)
+  const freneticPct = Math.min(100, (data.freneticMovement || 0) * 100);
+  const clickLevel = Math.min(100, ((data.unnecessaryClicks || 0) / 20) * 100); // Asumiendo 20 clics basura es "alto"
+
+  return (
+    <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+      <h4 className="text-sm font-semibold flex items-center gap-2 mb-3 text-slate-700">
+        <ActivityIcon className="w-4 h-4 text-orange-500" />
+        Análisis de Actividad Motora (Teclado/Mouse)
+      </h4>
+      
+      <div className="grid grid-cols-2 gap-4">
+        {/* Movimiento Frenético */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-slate-500">
+            <span>Movimiento Errático</span>
+            <span className="font-medium text-slate-700">{freneticPct.toFixed(0)}%</span>
+          </div>
+          <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+            <div 
+              className={`h-full ${freneticPct > 30 ? 'bg-red-500' : 'bg-green-500'}`} 
+              style={{ width: `${freneticPct}%` }} 
+            />
+          </div>
+          <p className="text-[10px] text-slate-400">Sacudidas rápidas del mouse</p>
+        </div>
+
+        {/* Clics Innecesarios (Fidgeting) */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-slate-500">
+            <span>Clics "Basura" (Fidgeting)</span>
+            <span className="font-medium text-slate-700">{data.unnecessaryClicks || 0}</span>
+          </div>
+          <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+            <div 
+              className={`h-full ${(data.unnecessaryClicks || 0) > 5 ? 'bg-orange-500' : 'bg-blue-400'}`} 
+              style={{ width: `${clickLevel}%` }} 
+            />
+          </div>
+          <p className="text-[10px] text-slate-400">Clics sin función en el juego</p>
+        </div>
+
+        {/* Estadísticas Extra */}
+        <div className="col-span-2 flex gap-4 mt-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2">
+            <MousePointer2 className="w-3 h-3 text-slate-400" />
+            <span className="text-xs text-slate-600">
+              Distancia: <strong className="text-slate-800">{((data.mouseDistance || 0) / 1000).toFixed(1)}k px</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Zap className="w-3 h-3 text-slate-400" />
+            <span className="text-xs text-slate-600">
+              Impulsividad Motora: <strong className="text-slate-800">{(data.clickRate || 0) > 0.5 ? "Alta" : "Normal"}</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* =========================
    Componente principal
    ========================= */
-export default function ResultsPage({ data: propData = DEMO }: { data?: ResultadosAlumno }) {
+import { getStudentResults } from "../services/results.service";
+
+export default function ResultsPage({ data: propData }: { data?: ResultadosAlumno }) {
   const { id } = useParams();
   const [apiData, setApiData] = React.useState<ResultadosAlumno | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  // Carga opcional por :id (usa DEMO si no hay API o falla)
   React.useEffect(() => {
     let cancelled = false;
-    if (!id) { setApiData(null); return; }
+    setLoading(true);
+    setError(null);
+
+    // If propData is provided, use it (e.g. for preview)
+    if (propData) {
+      setApiData(propData);
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
-        const url = `${import.meta.env.VITE_API_URL}/resultados/alumno/${id}`;
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const json = (await r.json()) as ResultadosAlumno;
-        if (!cancelled) setApiData(json);
-      } catch (e) {
+        // Fetch results for the given ID (admin/profesor view) or current user (student view)
+        const data = await getStudentResults(id);
+        if (!cancelled) setApiData(data);
+      } catch (e: any) {
         console.warn("Resultados API:", e);
-        if (!cancelled) setApiData(null);
+        if (!cancelled) setError(e.message || "Error al cargar resultados");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, propData]);
 
-  const data = apiData ?? propData; // DEMO hasta tener API
+  if (loading) return <div className="p-8 text-center text-muted-foreground">Cargando resultados...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+
+  const data = apiData ?? DEMO; // Fallback to DEMO only if absolutely necessary, but prefer showing error or empty state if real data is expected.
 
   const criterios = inferDSM5(data);
   const radarData = [
@@ -439,6 +386,17 @@ export default function ResultsPage({ data: propData = DEMO }: { data?: Resultad
               <div>Mediana RT: <span className="font-semibold text-foreground">{data.goNoGo.medianRT.toFixed(3)}s</span></div>
               <div>CV-RT: <span className="font-semibold text-foreground">{data.goNoGo.cvRT.toFixed(2)}</span></div>
             </div>
+            {/* Métricas Avanzadas Go/No-Go */}
+            <div className="mt-2 pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              <div>
+                Anticipaciones: 
+                <span className={`font-semibold ml-1 ${(data.goNoGo.fastGuessRate || 0) > 0.1 ? "text-red-500" : "text-foreground"}`}>
+                  {pct(data.goNoGo.fastGuessRate || 0, 1)}
+                </span>
+              </div>
+              <div>Lapsos: <span className="font-semibold text-foreground ml-1">{pct(data.goNoGo.lapsesRate || 0, 1)}</span></div>
+              <div>Fatiga: <span className="font-semibold text-foreground ml-1">{(data.goNoGo.vigilanceDecrement || 0).toFixed(2)}</span></div>
+            </div>
           </div>
 
           {/* Stop Signal */}
@@ -462,24 +420,17 @@ export default function ResultsPage({ data: propData = DEMO }: { data?: Resultad
                 <div>SSRT: <span className="font-semibold text-foreground">{data.stopSignal.ssrt.toFixed(3)}s</span></div>
               )}
             </div>
-          </div>
-
-          {/* Stroop */}
-          {data.stroop && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-medium">Stroop</span>
-                <Badge variant={riskVariant(scoreLevel(scoreToEvidence(data.stroop.deltaInterference, RULES.stroopDelta)))}>
-                  {riskLabel(scoreLevel(scoreToEvidence(data.stroop.deltaInterference, RULES.stroopDelta)))}
-                </Badge>
-              </div>
-              <Progress value={data.stroop.accuracy * 100} className="h-2" />
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                <div>Interferencia Δ: <span className="font-semibold text-foreground">{(data.stroop.deltaInterference * 100).toFixed(1)}%</span></div>
-                <div>Accuracy: <span className="font-semibold text-foreground">{pct(data.stroop.accuracy, 1)}</span></div>
-              </div>
+            {/* Métricas Avanzadas SST */}
+            <div className="mt-2 pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+               <div>
+                  SSRT: 
+                  <span className="font-bold text-indigo-600 ml-1">
+                    {((data.stopSignal.ssrt || 0) * 1000).toFixed(0)}ms
+                  </span>
+               </div>
+               <div>SSD Prom.: <span className="font-semibold text-foreground ml-1">{((data.stopSignal.ssdAverage || 0) * 1000).toFixed(0)}ms</span></div>
             </div>
-          )}
+          </div>
 
           {/* Torre de Londres */}
           {data.tol && (
@@ -493,6 +444,27 @@ export default function ResultsPage({ data: propData = DEMO }: { data?: Resultad
                 <div>Mov. extra:    <span className="font-semibold text-foreground">{data.tol.excessMoves}</span></div>
                 <div>Violaciones:   <span className="font-semibold text-foreground">{data.tol.ruleViolations}</span></div>
               </div>
+
+              {/* Nuevas Métricas Cognitivas TOL */}
+              <div className="mt-2 pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                 <div>
+                    Vel. Decisión: 
+                    <span className="font-semibold text-foreground ml-1">
+                      {(data.tol.decisionTime || 0).toFixed(1)}s
+                    </span>
+                 </div>
+                 <div>
+                    Puntaje Plan.: 
+                    <span className={`font-semibold ml-1 ${(data.tol.planningScore || 0) < 0.6 ? "text-red-500" : "text-foreground"}`}>
+                      {pct(data.tol.planningScore || 0, 0)}
+                    </span>
+                 </div>
+              </div>
+              
+              {/* NUEVO: Solo aquí mostramos la tarjeta de hiperactividad */}
+              {data.tol.hyperactivity && (
+                 <HyperactivityCard data={data.tol.hyperactivity} />
+              )}
             </div>
           )}
 
@@ -561,7 +533,12 @@ export default function ResultsPage({ data: propData = DEMO }: { data?: Resultad
         </CardContent>
         <CardFooter className="flex items-center justify-between">
           <div className="text-xs text-muted-foreground">DSM-5-TR: Códigos A1/A2 (uso orientativo)</div>
-          <button className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border hover:bg-accent">
+
+
+          <button 
+            onClick={() => generatePDF(data)}
+            className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border hover:bg-accent"
+          >
             <Download className="h-3.5 w-3.5" /> Exportar PDF
           </button>
         </CardFooter>

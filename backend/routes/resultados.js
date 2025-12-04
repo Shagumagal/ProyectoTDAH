@@ -72,13 +72,26 @@ router.post("/", async (req, res) => {
          $21::jsonb, NOW()
        ) RETURNING id`;
 
+    // Mapping Unity fields
+    const rt_p50 = b.rt_p50_ms ?? b.rt_median_ms ?? null;
+    
+    let detallesObj = b.detalles || {};
+    if (b.detalles_raw_text) {
+        try {
+            const parsed = JSON.parse(b.detalles_raw_text);
+            detallesObj = { ...detallesObj, ...parsed };
+        } catch (e) {
+            detallesObj.raw_text = b.detalles_raw_text;
+        }
+    }
+
     const params = [
       sesion_id, b.alumno_id, prueba_id, b.started_at, b.ended_at,
-      b.rt_promedio_ms ?? null, b.rt_p50_ms ?? null, b.rt_p90_ms ?? null, b.rt_sd_ms ?? null,
+      b.rt_promedio_ms ?? null, rt_p50, b.rt_p90_ms ?? null, b.rt_sd_ms ?? null,
       b.rt_min_ms ?? null, b.rt_max_ms ?? null,
       b.errores_omision ?? null, b.errores_comision ?? null, b.aciertos ?? null, b.total_estimulos ?? null,
       b.dprime ?? null, b.beta ?? null, b.posible_tdah ?? null, (b.tipo_tdah ?? "ninguno"), b.riesgo ?? null,
-      JSON.stringify({ fuente: "unity", ...(b.detalles || {}) }),
+      JSON.stringify({ fuente: "unity", ...detallesObj }),
     ];
 
     const r = await query(sql, params);
@@ -132,99 +145,107 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-/** GET /resultados/alumno/:id (reporte completo) */
-router.get("/alumno/:id", async (req, res) => {
-  const { id } = req.params;
+// GET /resultados/alumno/:id
+// Obtiene el perfil consolidado del alumno basado en sus últimas partidas
+router.get('/alumno/:id', async (req, res) => {
   try {
-    // 1. Datos del alumno
-    const studentRes = await query("SELECT id, nombre, fecha_nacimiento FROM app.usuarios WHERE id = $1", [id]);
-    if (studentRes.rowCount === 0) return res.status(404).json({ error: "Alumno no encontrado" });
-    const student = studentRes.rows[0];
+    const { id } = req.params;
 
-    // Calcular edad
-    let edad = 0;
-    if (student.fecha_nacimiento) {
-      const diff = Date.now() - new Date(student.fecha_nacimiento).getTime();
-      edad = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-    }
+    // 1. Buscar la ÚLTIMA partida de cada tipo de juego para este alumno
+    // Usamos DISTINCT ON para obtener la mas reciente por tipo de prueba
+    const sql = `
+      SELECT DISTINCT ON (p.codigo) r.*, p.codigo as prueba_codigo
+      FROM app.resultados r
+      JOIN app.pruebas p ON r.prueba_id = p.id
+      WHERE r.alumno_id = $1
+      ORDER BY p.codigo, r.started_at DESC;
+    `;
+    
+    const { rows } = await query(sql, [id]);
 
-    // 2. Últimos resultados por prueba
-    const tests = ["gng", "sst", "stroop", "tol"];
-    const results = {};
+    // Obtener datos del alumno para la respuesta
+    const studentRes = await query("SELECT nombre FROM app.usuarios WHERE id = $1", [id]);
+    const studentName = studentRes.rows[0]?.nombre || "Alumno";
 
-    for (const code of tests) {
-      const sql = `
-        SELECT r.*
-        FROM app.resultados r
-        JOIN app.pruebas p ON p.id = r.prueba_id
-        WHERE r.alumno_id = $1 AND p.codigo = $2
-        ORDER BY r.created_at DESC
-        LIMIT 1
-      `;
-      const r = await query(sql, [id, code]);
-      if (r.rowCount > 0) {
-        results[code] = r.rows[0];
-      }
-    }
-
-    // 3. Mapeo a estructura frontend
-    const mapBase = (row) => {
-      if (!row) return {
-        accuracy: 0, commissionRate: 0, omissionRate: 0,
-        medianRT: 0, p95RT: 0, cvRT: 0
-      };
-      const total = row.total_estimulos || 1;
-      const mean = row.rt_promedio_ms || 1;
-      return {
-        accuracy: (row.aciertos || 0) / total,
-        commissionRate: (row.errores_comision || 0) / total,
-        omissionRate: (row.errores_omision || 0) / total,
-        medianRT: (row.rt_p50_ms || 0) / 1000,
-        p95RT: (row.rt_p90_ms || 0) / 1000,
-        cvRT: (row.rt_sd_ms || 0) / mean,
-      };
-    };
-
-    // Extraer detalles si existen
-    const gngDet = results.gng?.detalles || {};
-    const sstDet = results.sst?.detalles || {};
-    const strDet = results.stroop?.detalles || {};
-    const tolDet = results.tol?.detalles || {};
-
+    // 2. Inicializar estructura vacía (por si no ha jugado algo aún)
     const response = {
-      alumno: {
-        id: student.id,
-        nombre: student.nombre,
-        edad: edad || undefined,
-        curso: "N/A"
-      },
+      alumno: { id: id, nombre: studentName },
       fecha: new Date().toISOString(),
-      goNoGo: {
-        ...mapBase(results.gng),
-        fastGuessRate: gngDet.fastGuessRate || 0,
-        lapsesRate: gngDet.lapsesRate || 0,
-        vigilanceDecrement: gngDet.vigilanceDecrement || 0,
-      },
-      stopSignal: {
-        ...mapBase(results.sst),
-        stopFailureRate: sstDet.stopFailureRate || 0,
-        ssrt: sstDet.ssrt || 0,
-      },
-      stroop: results.stroop ? {
-        deltaInterference: strDet.deltaInterference || 0,
-        accuracy: (results.stroop.aciertos || 0) / (results.stroop.total_estimulos || 1)
-      } : undefined,
-      tol: results.tol ? {
-        planLatency: tolDet.planLatency || 0,
-        excessMoves: tolDet.excessMoves || 0,
-        ruleViolations: tolDet.ruleViolations || 0
-      } : undefined
+      goNoGo: { accuracy: 0, commissionRate: 0, omissionRate: 0, medianRT: 0, cvRT: 0, p95RT: 0 },
+      stopSignal: { accuracy: 0, commissionRate: 0, omissionRate: 0, medianRT: 0, cvRT: 0, stopFailureRate: 0 },
+      stroop: null,
+      tol: null
     };
+
+    // 3. Mapear cada fila de la DB al formato del Frontend
+    rows.forEach(row => {
+      const detalles = row.detalles || {}; // El JSON guardado por Unity
+      const prueba = row.prueba_codigo; // 'gng', 'sst', 'tol'
+
+      if (prueba === 'gng' || prueba === 'go-no-go' || prueba === 'gonogo') {
+        response.goNoGo = {
+          accuracy: row.total_estimulos > 0 ? (row.aciertos / row.total_estimulos) : 0,
+          commissionRate: row.total_estimulos > 0 ? (row.errores_comision / row.total_estimulos) : 0,
+          omissionRate: row.total_estimulos > 0 ? (row.errores_omision / row.total_estimulos) : 0,
+          medianRT: (row.rt_p50_ms || row.rt_median_ms || 0) / 1000, // ms a segundos
+          cvRT: row.rt_promedio_ms > 0 ? (row.rt_sd_ms / row.rt_promedio_ms) : 0,
+          p95RT: (row.rt_p90_ms || row.rt_max_ms || 0) / 1000,
+          // Extraer métricas específicas del JSON si existen
+          fastGuessRate: detalles.fast_guess_rate || 0,
+          lapsesRate: detalles.lapses_rate || 0,
+          vigilanceDecrement: detalles.vigilance_decrement || 0
+        };
+      } 
+      else if (prueba === 'sst' || prueba === 'stop-signal') {
+        response.stopSignal = {
+          accuracy: row.total_estimulos > 0 ? (row.aciertos / row.total_estimulos) : 0,
+          commissionRate: row.total_estimulos > 0 ? (row.errores_comision / row.total_estimulos) : 0, // Falsas alarmas
+          omissionRate: row.total_estimulos > 0 ? (row.errores_omision / row.total_estimulos) : 0,
+          medianRT: (row.rt_p50_ms || row.rt_median_ms || 0) / 1000,
+          cvRT: row.rt_promedio_ms > 0 ? (row.rt_sd_ms / row.rt_promedio_ms) : 0,
+          stopFailureRate: row.total_estimulos > 0 ? (row.errores_comision / row.total_estimulos) : 0, // En SST, comision = stop failure
+          ssrt: detalles.ssrt || (detalles.ssrt_ms ? detalles.ssrt_ms / 1000 : 0),
+          ssdAverage: detalles.ssd_average || 0
+        };
+      }
+      else if (prueba === 'tol' || prueba === 'torre-londres') {
+        // AQUÍ ESTÁ LA CLAVE: Mapear nombres de Unity a nombres del Frontend
+        
+        // Buscar métricas de hiperactividad asociadas a ESTE resultado
+        // Nota: row.hyperactivity ya viene del LEFT JOIN en la query principal, 
+        // pero viene como objeto jsonb. Si queremos asegurarnos de tener los campos mapeados:
+        const h = row.hyperactivity || {};
+
+        response.tol = {
+          // Unity envía: first_action_latency_s  -> Frontend espera: planLatency
+          planLatency: detalles.first_action_latency_s || 0,
+          
+          // Unity envía: sequence_errors       -> Frontend espera: excessMoves (aprox)
+          excessMoves: detalles.sequence_errors || 0,
+          
+          // Unity envía: category_switches     -> Frontend espera: ruleViolations (aprox)
+          ruleViolations: detalles.category_switches || 0,
+
+          // NUEVOS CAMPOS
+          decisionTime: detalles.mean_decision_time_s || 0,
+          planningScore: detalles.sequence_compliance || 0, // 0 a 1
+
+          // AQUI AGREGAMOS LO NUEVO SOLO PARA TOL
+          hyperactivity: {
+            mouseDistance: h.total_mouse_distance_px || 0,
+            freneticMovement: h.frenetic_movement_rate || 0,
+            unnecessaryClicks: h.unnecessary_clicks || 0,
+            clickRate: h.mean_mouse_speed_px_s || 0 // Usamos velocidad media como proxy o h.unnecessary_click_rate si prefieres
+          }
+        };
+      }
+    });
 
     res.json(response);
-  } catch (e) {
-    console.error("GET /resultados/alumno/:id error:", e);
-    res.status(500).json({ error: e.message });
+
+  } catch (error) {
+    console.error("Error obteniendo resultados:", error);
+    res.status(500).send("Error del servidor");
   }
 });
 
