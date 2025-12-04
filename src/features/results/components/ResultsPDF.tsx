@@ -1,5 +1,5 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import type { ResultadosAlumno } from '../types';
 import { inferDSM5 } from '../utils/dsm5';
 
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
 const MetricRow = ({ label, value, highlight = false }: { label: string, value: string, highlight?: boolean }) => (
   <View style={styles.row}>
     <Text style={styles.label}>{label}</Text>
-    <Text style={[styles.value, highlight && { color: '#4f46e5' }]}>{value}</Text>
+    <Text style={[styles.value, highlight ? { color: '#4f46e5' } : {}]}>{value}</Text>
   </View>
 );
 

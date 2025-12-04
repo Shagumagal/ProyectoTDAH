@@ -1,4 +1,4 @@
-import type { ResultadosAlumno, Evidence, TowerOfLondonMetrics } from "../types";
+import type { ResultadosAlumno, Evidence } from "../types";
 
 /* =========================
    Umbrales/Reglas
