@@ -1,8 +1,13 @@
 {
   "rewrites": [
     {
+      "source": "/game/:path*",
+      "destination": "/game/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "cleanUrls": true
 }
