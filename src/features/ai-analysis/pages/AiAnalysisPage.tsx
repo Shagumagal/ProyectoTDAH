@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
-import { predictADHD, type InputFeatures } from '../services/adhdPrediction.service';
+import { predictADHD } from '../services/adhdPrediction.service';
 
 const AiAnalysisPage: React.FC = () => {
     const [prediction, setPrediction] = useState<number | null>(null);
 
-    const handleAnalysis = () => {
-        const sampleInput: InputFeatures = {
-            "Feature_0": 2.08,
-            "Feature_1": 1.0,
-            "Feature_2": 10.88,
-        };
-
-        const result = predictADHD(sampleInput);
-        setPrediction(result);
+    const handleAnalysis = async () => {
+        try {
+            const result = await predictADHD();
+            setPrediction(result);
+        } catch (error) {
+            console.error("Analysis failed:", error);
+            alert("Error al realizar el análisis. Por favor intente nuevamente.");
+        }
     };
 
     return (

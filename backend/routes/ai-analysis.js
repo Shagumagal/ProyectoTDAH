@@ -1,7 +1,7 @@
 // backend/routes/ai-analysis.js
 const express = require("express");
 const { pool } = require("../db");
-const { prepareModelInput, predictADHD } = require("../services/adhdPrediction.service");
+const { prepareInputVector, predictADHD } = require("../services/adhdPrediction.service");
 const { requireAuth } = require("../middlewares/auth");
 
 const router = express.Router();
@@ -45,7 +45,7 @@ router.post("/predict", requireAuth, async (req, res) => {
         const detalles = resultRes.rows[0].detalles || {};
 
         // 3. Prepare Input
-        const inputVector = prepareModelInput(detalles, student);
+        const inputVector = prepareInputVector(detalles, student);
 
         // 4. Predict
         const prediction = predictADHD(inputVector);

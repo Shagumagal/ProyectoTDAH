@@ -1,12 +1,13 @@
 // backend/services/adhdPrediction.service.js
 
-// Model Parameters (Hardcoded from Python model)
-const COEFFICIENTS = [-3.8135472409751108, 0.0, 3.3655277981956595, 0.402634242110309, 1.4431032983970766, 0.415677509110848, 0.0, -0.5758817587898222, 3.386762082054547, 1.6835862368801215, 0.3023652790048167, 1.4267719077370473, 1.8859665887857608, 0.5682283978320876, -1.688652367108186, 1.688652367108186];
-const INTERCEPT = 0.562454514484786;
-const SCALER_MEANS = [2.08, 1.0, 10.88, 1.5, 1.0866666666666667, 2.2466666666666666, 160.0, 0.8638200000000003, 0.8591616666666666, 0.1425883333333333, 0.4980619987759016, 0.47591, 0.7071693333333333, 0.11748110551753975, 137.19333333333333, 22.80666666666667];
-const SCALER_SCALES = [1.852997571504075, 1.0, 0.9724196624914575, 0.5, 0.2813459712801226, 0.4310710176087256, 1.0, 0.044694184185417235, 0.0588348120918975, 0.05861613214143543, 0.06436330426093971, 0.05134319396635417, 0.14950741372773313, 0.04244874518410925, 9.384879091152722, 9.384879091152722];
-const FEATURE_MEDIANS = { "Age": 11.0, "Gender": 1.5, "n_trials": 160.0 }; // Partial list
-const THRESHOLD = 0.3;
+// 1. Constantes del Modelo (Extraídas del .pkl)
+const ML_CONFIG = {
+    coefficients: [-3.81354724, 0.0, 3.3655278, 0.40263424, 1.4431033, 0.41567751, 0.0, -0.57588176, 3.38676208, 1.68358624, 0.30236528, 1.42677191, 1.88596659, 0.5682284, -1.68865237, 1.68865237],
+    intercept: 0.56245451,
+    scalerMeans: [2.08, 1.0, 10.88, 1.5, 1.08666667, 2.24666667, 160.0, 0.86382, 0.85916167, 0.14258833, 0.498062, 0.47591, 0.70716933, 0.11748111, 137.193333, 22.8066667],
+    scalerScales: [1.85299757, 1.0, 0.97241966, 0.5, 0.28134597, 0.43107102, 1.0, 0.04469418, 0.05883481, 0.05861613, 0.0643633, 0.05134319, 0.14950741, 0.04244875, 9.38487909, 9.38487909],
+    threshold: 0.3
+};
 
 // Feature names in the exact order expected by the model
 const FEATURE_COLUMNS = [
@@ -17,38 +18,51 @@ const FEATURE_COLUMNS = [
 ];
 
 /**
- * Prepares the input vector for the model.
+ * 2. Lógica de Preparación de Datos (Data Fusion & Projection)
  * @param {object} detalles - Metrics from the game (Unity JSON).
  * @param {object} alumno - Student data (fecha_nacimiento, genero).
  * @returns {object} - Input vector with 16 keys.
  */
-function prepareModelInput(detalles, alumno) {
-    // 1. Calcular Edad (Numérica Continua)
+function prepareInputVector(detalles, alumno) {
+    // A. Ajuste de Edad (Anti-Sesgo)
     const birthDate = new Date(alumno.fecha_nacimiento);
     const now = new Date();
     // 365.25 considera años bisiestos para mayor precisión
-    const age = (now.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    let age = (now.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    
+    // Regla: Si edad < 9.0, fuerza el valor a 10.0.
+    if (age < 9.0) {
+        age = 10.0;
+    }
 
-    // 2. Codificar Género (1 y 2)
-    // Asumimos: 1 = Masculino, 2 = Femenino (Estándar común en datasets médicos)
+    // B. Ajuste de Género
+    // Codificación: Masculino = 1, Femenino = 2.
     const g = (alumno.genero || "").toString().toUpperCase();
     let genderCode = 1; // Default Masculino
-    if (g === 'F' || g === 'FEMENINO' || g === 'FEMALE') {
+    if (g === 'F' || g === 'FEMENINO' || g === 'FEMALE' || g === 'MUJER' || g === 'NIÑA') {
         genderCode = 2;
     }
 
-    // 3. Retornar Objeto con las 16 columnas exactas
+    // C. Proyección de Intentos (Escalado de Sesión)
+    // El modelo espera 160 trials. Nosotros tenemos N (ej. 30).
+    const nTrialsActual = detalles.n_trials || 0;
+    const factor = nTrialsActual > 0 ? (160 / nTrialsActual) : 0;
+
+    const nCorrectInput = (detalles.n_correct || 0) * factor;
+    const nIncorrectInput = (detalles.n_incorrect || 0) * factor;
+
+    // 3. Vector Final (Orden Estricto)
     return {
-        // --- Identificadores Dummy (Obligatorios) ---
+        // --- D. Variables Dummy (Relleno) ---
         visit: 1,
         session: 1,
-        Age: Number(age.toFixed(2)), // Ej: 11.5
+        Age: Number(age.toFixed(2)), // Ajustada
         Gender: genderCode,          // 1 o 2
         runid1: 1,
         runid2: 1,
 
         // --- Métricas del Juego ---
-        n_trials: detalles.n_trials || 0,
+        n_trials: 160, // Proyectado a 160
         responded_rate: detalles.responded_rate || 0,
         accuracy: detalles.accuracy || 0,
         fail_rate: detalles.fail_rate || 0,
@@ -56,13 +70,13 @@ function prepareModelInput(detalles, alumno) {
         median_rt: detalles.median_rt || 0,
         p95_rt: detalles.p95_rt || 0,
         std_rt: detalles.std_rt || 0,
-        n_correct: detalles.n_correct || 0,
-        n_incorrect: detalles.n_incorrect || 0
+        n_correct: nCorrectInput,     // Proyectado
+        n_incorrect: nIncorrectInput  // Proyectado
     };
 }
 
 /**
- * Predicts ADHD probability based on input features.
+ * 4. Algoritmo de Predicción
  * @param {object} inputFeatures - Object with 16 keys.
  * @returns {number} - 1 if ADHD is detected, 0 otherwise.
  */
@@ -72,33 +86,38 @@ function predictADHD(inputFeatures) {
         let val = inputFeatures[col];
         // Simple imputation if undefined/null
         if (val === undefined || val === null) {
-            val = FEATURE_MEDIANS[col] !== undefined ? FEATURE_MEDIANS[col] : 0;
+            val = 0;
         }
         return val;
     });
 
-    // 2. Standard Scaling
-    const scaledFeatures = featureVector.map((val, i) => {
-        const mean = SCALER_MEANS[i];
-        const scale = SCALER_SCALES[i];
-        if (scale === 0) return 0; // Avoid division by zero
-        return (val - mean) / scale;
-    });
-
-    // 3. Logistic Regression Prediction
-    let z = INTERCEPT;
-    for (let i = 0; i < scaledFeatures.length; i++) {
-        z += scaledFeatures[i] * COEFFICIENTS[i];
+    // 2. Standard Scaling & Dot Product
+    // z = intercept + SUM(scaled[i] * coefficients[i])
+    // scaled[i] = (input[i] - scalerMeans[i]) / scalerScales[i]
+    
+    let z = ML_CONFIG.intercept;
+    
+    for (let i = 0; i < featureVector.length; i++) {
+        const val = featureVector[i];
+        const mean = ML_CONFIG.scalerMeans[i];
+        const scale = ML_CONFIG.scalerScales[i];
+        const coeff = ML_CONFIG.coefficients[i];
+        
+        // Evitar división por cero si scale es 0
+        const scaledVal = scale !== 0 ? (val - mean) / scale : 0;
+        
+        z += scaledVal * coeff;
     }
 
-    // Sigmoid function
+    // 3. Sigmoide: prob = 1 / (1 + exp(-z))
     const probability = 1 / (1 + Math.exp(-z));
 
-    // 4. Binary Classification
-    return probability >= THRESHOLD ? 1 : 0;
+    // 4. Clasificar: prediction = prob >= threshold ? 1 : 0
+    return probability >= ML_CONFIG.threshold ? 1 : 0;
 }
 
 module.exports = {
-    prepareModelInput,
-    predictADHD
+    prepareInputVector,
+    predictADHD,
+    ML_CONFIG // Exported for testing purposes
 };
