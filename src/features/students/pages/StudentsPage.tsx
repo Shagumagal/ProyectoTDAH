@@ -241,6 +241,12 @@ export default function StudentsPage() {
                           >
                             Resultados
                           </button>
+                          <button
+                            className="rounded-lg px-3 py-1 bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300 hover:bg-fuchsia-200 dark:hover:bg-fuchsia-900/60"
+                            onClick={() => navigate(ROUTES.analisisIA, { state: { studentId: u.id, studentName: `${u.nombre} ${u.apellido}` } })}
+                          >
+                            Análisis IA
+                          </button>
                           {!u.correo && u.username && (
                             <button
                               onClick={() => handleRegenerateCode(u.id)}

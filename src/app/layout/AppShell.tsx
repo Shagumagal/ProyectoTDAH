@@ -25,9 +25,9 @@ function getRoleFromToken(): Role | null {
 }
 
 const ALLOWED_ROUTES: Record<Role, string[]> = {
-  admin:     [ROUTES.usuarios, ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados],
-  profesor:  [ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados],
-  psicologo: [ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados],
+  admin:     [ROUTES.usuarios, ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
+  profesor:  [ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
+  psicologo: [ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados, ROUTES.analisisIA],
   estudiante:[ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados],
 };
 
@@ -124,6 +124,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <rect x="7" y="9" width="3" height="9" />
             <rect x="12" y="5" width="3" height="13" />
             <rect x="17" y="8" width="3" height="10" />
+          </svg>
+        ),
+      },
+      {
+        to: ROUTES.analisisIA,
+        label: "Análisis IA",
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
           </svg>
         ),
       },

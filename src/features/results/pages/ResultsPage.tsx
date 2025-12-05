@@ -38,7 +38,7 @@ export const Badge: React.FC<{ variant?: BadgeVariant; className?: string; child
   const base = "inline-flex items-center rounded-md px-2 py-0.5 text-xs border";
   const styles: Record<BadgeVariant, string> = {
     secondary: "bg-gray-100 text-gray-900 border-gray-200",
-    outline: "bg-transparent text-gray-900 border-gray-300",
+    outline: "bg-transparent text-white border-white/30",
     destructive: "bg-red-100 text-red-800 border-red-200",
     default: "bg-gray-100 text-gray-900 border-gray-200",
   };

@@ -10,5 +10,6 @@ export const ROUTES = {
   forgot: "/auth/forgot",
   reset: "/auth/reset",
   perfil: "/app/perfil",
-  captcha: "/app/captcha"
+  captcha: "/app/captcha",
+  analisisIA: "/app/analisis-ia"
 } as const;

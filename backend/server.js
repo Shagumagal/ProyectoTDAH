@@ -54,6 +54,7 @@ app.use("/users", userRoutes);
 app.use("/game", gameRoutes);
 app.use("/resultados", resultadosRouter);
 app.use("/api", require("./routes/metricas-hiperactividad"));
+app.use("/api/ai-analysis", require("./routes/ai-analysis"));
 
 
 const PORT = process.env.PORT || 4000;
