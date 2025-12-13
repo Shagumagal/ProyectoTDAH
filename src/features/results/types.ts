@@ -68,6 +68,7 @@ export type ResultadosAlumno = {
   stopSignal: StopSignalMetrics;
   // stroop?: StroopMetrics;
   tol?: TowerOfLondonMetrics;
+  aiAnalysisText?: string;
 };
 
 export type Evidence = "sin" | "debil" | "moderada" | "fuerte";

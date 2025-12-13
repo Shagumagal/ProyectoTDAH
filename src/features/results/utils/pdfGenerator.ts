@@ -2,12 +2,17 @@ import { pdf } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { ResultsPDF } from '../components/ResultsPDF';
 import type { ResultadosAlumno } from '../types';
+import { generateClinicalAnalysis } from './aiAdvisor';
 
 export const generatePDF = async (data: ResultadosAlumno) => {
   try {
+    // Generar análisis de IA (Asesor)
+    const aiText = generateClinicalAnalysis(data);
+    const pdfData = { ...data, aiAnalysisText: aiText };
+
     // 1. Renderizar el componente PDF a un blob
     // @ts-ignore
-    const blob = await pdf(createElement(ResultsPDF, { data })).toBlob();
+    const blob = await pdf(createElement(ResultsPDF, { data: pdfData })).toBlob();
     
     // 2. Crear una URL para el blob
     const url = URL.createObjectURL(blob);

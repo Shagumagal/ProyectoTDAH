@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { getStudentResults } from "../../results/services/results.service";
 import GamifiedResults from "../components/GamifiedResults";
+import Leaderboard from "../components/Leaderboard";
 import type { ResultadosAlumno } from "../../results/types";
 import { Loader2 } from "lucide-react";
 
@@ -85,6 +86,10 @@ export default function StudentGameResultsPage() {
       </div>
 
       <GamifiedResults results={data} />
+
+      <div className="pt-8">
+         <Leaderboard />
+      </div>
     </div>
   );
 }

@@ -36,3 +36,31 @@ export async function getStudentResults(studentId?: string): Promise<ResultadosA
 
   return res.json();
 }
+
+export type RankingItem = {
+  nombre: string;
+  acc_score: number; // 0-1
+  tol_score: number; // 0-1
+  created_at: string;
+};
+
+export type GlobalRanking = {
+  gng: RankingItem[];
+  sst: RankingItem[];
+  tol: RankingItem[];
+};
+
+export async function getGlobalRanking(): Promise<GlobalRanking> {
+  const token = localStorage.getItem("auth_token");
+  const res = await fetch(`${API_URL}/resultados/global/ranking`, {
+    headers: {
+      Authorization: `Bearer ${token || ""}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Error fetching ranking: ${res.statusText}`);
+  }
+
+  return res.json();
+}

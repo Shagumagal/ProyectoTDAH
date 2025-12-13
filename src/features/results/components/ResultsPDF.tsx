@@ -219,8 +219,19 @@ export const ResultsPDF = ({ data }: { data: ResultadosAlumno }) => {
           </Section>
         )}
 
+        {/* AI Analysis Section */}
+        {data.aiAnalysisText && (
+          <Section title="5. Interpretación Clínica Automatizada (Asesor IA)">
+             <View style={{ padding: 8, backgroundColor: '#f0f9ff', borderRadius: 4, borderWidth: 1, borderColor: '#bae6fd' }}>
+                <Text style={{ fontSize: 10, lineHeight: 1.6, color: '#0369a1', textAlign: 'justify' }}>
+                  {data.aiAnalysisText}
+                </Text>
+             </View>
+          </Section>
+        )}
+
         {/* DSM-5 Criteria Section */}
-        <Section title="5. Criterios DSM-5-TR Asociados (Orientativo)">
+        <Section title="6. Criterios DSM-5-TR Asociados (Orientativo)">
           <View style={styles.grid}>
             {inferDSM5(data)
               .filter(c => !c.medidoPor.includes("No medido") && !c.medidoPor.includes("No medido por juegos actuales"))

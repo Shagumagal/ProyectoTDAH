@@ -127,6 +127,73 @@ router.get("/", async (req, res) => {
   }
 });
 
+/** GET /ranking (Top Global) */
+router.get("/global/ranking", async (req, res) => {
+  try {
+    const sql = `
+      WITH StudentBest AS (
+        SELECT 
+            u.nombre, 
+            p.codigo, 
+            r.created_at,
+            (CASE WHEN r.total_estimulos > 0 THEN (r.aciertos::float / r.total_estimulos) ELSE 0 END) as acc_score,
+            COALESCE(r.detalles->>'sequence_compliance', '0')::float as tol_score,
+            
+            -- Puntuación unificada para ordenar
+            (CASE 
+                WHEN p.codigo LIKE '%tol%' OR p.codigo LIKE '%torre%' THEN COALESCE(r.detalles->>'sequence_compliance', '0')::float
+                ELSE (CASE WHEN r.total_estimulos > 0 THEN (r.aciertos::float / r.total_estimulos) ELSE 0 END)
+            END) as sort_score,
+
+            ROW_NUMBER() OVER (
+                PARTITION BY p.codigo, r.alumno_id -- Agrupamos por juego Y alumno
+                ORDER BY 
+                  (CASE 
+                    WHEN p.codigo LIKE '%tol%' OR p.codigo LIKE '%torre%' THEN COALESCE(r.detalles->>'sequence_compliance', '0')::float
+                    ELSE (CASE WHEN r.total_estimulos > 0 THEN (r.aciertos::float / r.total_estimulos) ELSE 0 END)
+                  END) DESC,
+                  r.created_at DESC
+            ) as rn_per_student
+        FROM app.resultados r
+        JOIN app.usuarios u ON r.alumno_id = u.id
+        JOIN app.pruebas p ON r.prueba_id = p.id
+      ),
+      TopPerGame AS (
+        SELECT *,
+            ROW_NUMBER() OVER (
+                PARTITION BY codigo 
+                ORDER BY sort_score DESC
+            ) as global_rn
+        FROM StudentBest
+        WHERE rn_per_student = 1 -- Solo la mejor partida de cada alumno
+      )
+      SELECT * FROM TopPerGame WHERE global_rn <= 5;
+    `;
+    const result = await query(sql);
+    
+    // Group by game code with broader matching
+    const ranking = {
+      gng: result.rows.filter(r => {
+          const c = r.codigo.toLowerCase();
+          return c.includes('gng') || c.includes('go') || c.includes('atencion');
+      }),
+      sst: result.rows.filter(r => {
+          const c = r.codigo.toLowerCase();
+          return c.includes('sst') || c.includes('stop') || c.includes('control');
+      }),
+      tol: result.rows.filter(r => {
+          const c = r.codigo.toLowerCase();
+          return c.includes('tol') || c.includes('torre') || c.includes('tower');
+      })
+    };
+
+    res.json(ranking);
+  } catch(e) {
+    console.error("Error fetching ranking:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /** GET /resultados/:id  (detalle) */
 router.get("/:id", async (req, res) => {
   try {

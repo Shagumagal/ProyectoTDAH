@@ -89,7 +89,7 @@ export default function GamifiedResults({ results }: InternalProps) {
   }
 
   return (
-    <section className="space-y-6 animate-fade-in">
+    <section className="space-y-8 animate-fade-in">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl">
           <Trophy className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
@@ -102,14 +102,14 @@ export default function GamifiedResults({ results }: InternalProps) {
         <div className="relative overflow-hidden group rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
           <div className={`absolute top-0 inset-x-0 h-32 bg-gradient-to-br ${stats.gng.color} opacity-90`} />
           
-          <div className="relative p-6 pt-8 text-center">
+          <div className="relative p-6 pt-8 text-center flex flex-col h-full">
             <div className={`mx-auto mb-4 w-20 h-20 rounded-full bg-gradient-to-br ${stats.gng.color} shadow-lg flex items-center justify-center ring-4 ring-white dark:ring-slate-900`}>
               {stats.gng.icon}
             </div>
             <div className="mb-1 text-xs font-bold uppercase tracking-wider text-white/90 drop-shadow-md">Misión: Ojo de Águila</div>
             <h3 className="text-3xl font-black text-slate-800 dark:text-white mb-2">{stats.gng.rank}</h3>
             
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-4 flex-1">
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4">
                 <div className="flex items-center justify-between text-sm mb-2">
                   <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300"><Target className="w-4 h-4 text-indigo-500" /> Puntería</span>
@@ -126,6 +126,22 @@ export default function GamifiedResults({ results }: InternalProps) {
                 </span>
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{Math.round(stats.gng.speed)} ms</span>
               </div>
+              
+               {/* Detail Stats */}
+               <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="text-center p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Omisiones</p>
+                    <p className="text-lg font-bold text-slate-700 dark:text-slate-300">
+                      {Math.round((results?.goNoGo.omissionRate || 0) * 100)}%
+                    </p>
+                  </div>
+                  <div className="text-center p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Impulsos</p>
+                    <p className="text-lg font-bold text-slate-700 dark:text-slate-300">
+                      {Math.round((results?.goNoGo.commissionRate || 0) * 100)}%
+                    </p>
+                  </div>
+              </div>
             </div>
           </div>
         </div>
@@ -134,14 +150,14 @@ export default function GamifiedResults({ results }: InternalProps) {
         <div className="relative overflow-hidden group rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
           <div className={`absolute top-0 inset-x-0 h-32 bg-gradient-to-br ${stats.sst.color} opacity-90`} />
           
-          <div className="relative p-6 pt-8 text-center">
+          <div className="relative p-6 pt-8 text-center flex flex-col h-full">
             <div className={`mx-auto mb-4 w-20 h-20 rounded-full bg-gradient-to-br ${stats.sst.color} shadow-lg flex items-center justify-center ring-4 ring-white dark:ring-slate-900`}>
               {stats.sst.icon}
             </div>
             <div className="mb-1 text-xs font-bold uppercase tracking-wider text-white/90 drop-shadow-md">Misión: Mente Zen</div>
             <h3 className="text-3xl font-black text-slate-800 dark:text-white mb-2">{stats.sst.rank}</h3>
             
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-4 flex-1">
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4">
                 <div className="flex items-center justify-between text-sm mb-2">
                   <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300"><Shield className="w-4 h-4 text-emerald-500" /> Control</span>
@@ -158,6 +174,22 @@ export default function GamifiedResults({ results }: InternalProps) {
                 </span>
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{Math.round(stats.sst.speed)} ms</span>
               </div>
+
+               {/* Detail Stats */}
+               <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="text-center p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Frenado (SSRT)</p>
+                    <p className="text-lg font-bold text-slate-700 dark:text-slate-300">
+                      {Math.round((results?.stopSignal?.ssrt || 0) * 1000)}ms
+                    </p>
+                  </div>
+                  <div className="text-center p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Fallos</p>
+                    <p className="text-lg font-bold text-slate-700 dark:text-slate-300">
+                      {Math.round((results?.stopSignal?.stopFailureRate || 0) * 100)}%
+                    </p>
+                  </div>
+              </div>
             </div>
           </div>
         </div>
@@ -167,14 +199,14 @@ export default function GamifiedResults({ results }: InternalProps) {
           <div className="relative overflow-hidden group rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
             <div className={`absolute top-0 inset-x-0 h-32 bg-gradient-to-br ${stats.tol.color} opacity-90`} />
             
-            <div className="relative p-6 pt-8 text-center">
+            <div className="relative p-6 pt-8 text-center flex flex-col h-full">
               <div className={`mx-auto mb-4 w-20 h-20 rounded-full bg-gradient-to-br ${stats.tol.color} shadow-lg flex items-center justify-center ring-4 ring-white dark:ring-slate-900`}>
                 {stats.tol.icon}
               </div>
               <div className="mb-1 text-xs font-bold uppercase tracking-wider text-white/90 drop-shadow-md">Misión: Arquitecto</div>
               <h3 className="text-3xl font-black text-slate-800 dark:text-white mb-2">{stats.tol.rank}</h3>
               
-              <div className="mt-6 space-y-4">
+              <div className="mt-6 space-y-4 flex-1">
                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4">
                   <div className="flex items-center justify-between text-sm mb-2">
                     <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300"><Brain className="w-4 h-4 text-purple-500" /> Ingeniería</span>
@@ -187,10 +219,26 @@ export default function GamifiedResults({ results }: InternalProps) {
 
                 <div className="flex items-center justify-between px-2">
                   <span className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    <Clock className="w-3 h-3" /> Tiempo
+                    <Clock className="w-3 h-3" /> Tiempo Total
                   </span>
                   <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{Math.round(stats.tol.time)} s</span>
                 </div>
+
+                {/* Detail Stats */}
+                <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="text-center p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Planificación</p>
+                    <p className="text-lg font-bold text-slate-700 dark:text-slate-300">
+                      {Math.round((results?.tol?.planLatency || 0))}s
+                    </p>
+                  </div>
+                  <div className="text-center p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                    <p className="text-[10px] uppercase text-slate-400 font-bold">Mov. Extra</p>
+                    <p className="text-lg font-bold text-slate-700 dark:text-slate-300">
+                      {results?.tol?.excessMoves || 0}
+                    </p>
+                  </div>
+               </div>
               </div>
             </div>
           </div>
