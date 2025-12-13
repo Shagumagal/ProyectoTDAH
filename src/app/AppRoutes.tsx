@@ -23,6 +23,7 @@ const ForgotPasswordPage = lazy(() => import("../features/auth/ForgotPasswordPag
 const ResetPasswordPage = lazy(() => import("../features/auth/ResetPasswordPage"));
 const ResultsPage = lazy(() => import("../features/results/pages/ResultsPage"));
 const AIAnalysisPage = lazy(() => import("../features/results/pages/AIAnalysisPage"));
+const StudentGameResultsPage = lazy(() => import("../features/students/pages/StudentGameResultsPage")); // Nuevo
 const PlayGamePage = lazy(() => import("../features/game/GamePage").then(m => ({ default: m.GamePage })));
 const CaptchaPage = lazy(() => import("../features/captcha/CaptchaPage"));
 
@@ -138,6 +139,15 @@ export default function AppRoutes() {
                   element={
                     <ProtectedRoute allow={["admin", "profesor"]}>
                       <StudentsPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path={ROUTES.resultadosJuego}
+                  element={
+                    <ProtectedRoute allow={["estudiante"]}>
+                      <StudentGameResultsPage />
                     </ProtectedRoute>
                   }
                 />

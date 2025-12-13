@@ -266,6 +266,8 @@ export default function ResultsPage({ data: propData }: { data?: ResultadosAlumn
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+
+
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -323,13 +325,20 @@ export default function ResultsPage({ data: propData }: { data?: ResultadosAlumn
               Reporte orientativo basado en desempeño en minijuegos — <span className="font-medium">no constituye diagnóstico clínico</span>.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">ID: {data.alumno.id}</Badge>
-            {data.alumno.edad && <Badge className="text-xs">{data.alumno.edad} años</Badge>}
-            {data.alumno.curso && <Badge className="text-xs" variant="outline">{data.alumno.curso}</Badge>}
+          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+             <div className="size-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+               <span className="font-bold text-xs">{data.alumno.nombre ? data.alumno.nombre.charAt(0) : "A"}</span>
+             </div>
+             <div>
+               <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Estudiante</p>
+               <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{data.alumno.nombre || "Alumno Test"}</p>
+             </div>
           </div>
         </div>
       </div>
+
+      {/* --- SECCIÓN GAMIFICADA (SOLO ESTUDIANTES) --- */}
+
 
       {/* Izquierda: Radar + Resumen */}
       <Card className="xl:col-span-1">

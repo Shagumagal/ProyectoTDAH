@@ -28,7 +28,7 @@ const ALLOWED_ROUTES: Record<Role, string[]> = {
   admin:     [ROUTES.usuarios, ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
   profesor:  [ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
   psicologo: [ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados, ROUTES.analisisIA],
-  estudiante:[ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados],
+  estudiante:[ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados, ROUTES.resultadosJuego],
 };
 
 function DarkModeToggle() {
@@ -135,6 +135,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <path d="M12 2L2 7l10 5 10-5-10-5z"/>
             <path d="M2 17l10 5 10-5"/>
             <path d="M2 12l10 5 10-5"/>
+          </svg>
+        ),
+      },
+
+      {
+        to: ROUTES.resultadosJuego,
+        label: "Resultados Juegos",
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M8 21h8" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M12 17v4" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M12 2C7.5 2 4 5 4 9c0 4.4 2.5 8 8 8s8-3.6 8-8c0-4-3.5-7-8-7z" strokeWidth="2"/>
           </svg>
         ),
       },

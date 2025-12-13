@@ -13,7 +13,13 @@ export function authHeaders(extra: Record<string, string> = {}): HeadersInit {
 export async function jget<T = any>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`${API_URL}${path}`, { ...init, method: "GET", headers: authHeaders(init?.headers as any) });
   const t = await r.text();
-  if (!r.ok) throw new Error(t || `HTTP ${r.status}`);
+  if (!r.ok) {
+    if (r.status === 401) {
+      localStorage.removeItem("auth_token");
+      window.location.href = "/auth/login";
+    }
+    throw new Error(t || `HTTP ${r.status}`);
+  }
   return t ? JSON.parse(t) : ({} as T);
 }
 export async function jpost<T = any>(path: string, body?: any, init?: RequestInit): Promise<T> {
@@ -24,7 +30,13 @@ export async function jpost<T = any>(path: string, body?: any, init?: RequestIni
     body: body != null ? JSON.stringify(body) : undefined,
   });
   const t = await r.text();
-  if (!r.ok) throw new Error(t || `HTTP ${r.status}`);
+  if (!r.ok) {
+    if (r.status === 401) {
+      localStorage.removeItem("auth_token");
+      window.location.href = "/auth/login";
+    }
+    throw new Error(t || `HTTP ${r.status}`);
+  }
   return t ? JSON.parse(t) : ({} as T);
 }
 export async function jput<T = any>(path: string, body?: any, init?: RequestInit): Promise<T> {
@@ -35,7 +47,13 @@ export async function jput<T = any>(path: string, body?: any, init?: RequestInit
     body: body != null ? JSON.stringify(body) : undefined,
   });
   const t = await r.text();
-  if (!r.ok) throw new Error(t || `HTTP ${r.status}`);
+  if (!r.ok) {
+    if (r.status === 401) {
+      localStorage.removeItem("auth_token");
+      window.location.href = "/auth/login";
+    }
+    throw new Error(t || `HTTP ${r.status}`);
+  }
   return t ? JSON.parse(t) : ({} as T);
 }
 export async function jpatch<T = any>(path: string, body?: any, init?: RequestInit): Promise<T> {
@@ -46,6 +64,12 @@ export async function jpatch<T = any>(path: string, body?: any, init?: RequestIn
     body: body != null ? JSON.stringify(body) : undefined,
   });
   const t = await r.text();
-  if (!r.ok) throw new Error(t || `HTTP ${r.status}`);
+  if (!r.ok) {
+    if (r.status === 401) {
+      localStorage.removeItem("auth_token");
+      window.location.href = "/auth/login";
+    }
+    throw new Error(t || `HTTP ${r.status}`);
+  }
   return t ? JSON.parse(t) : ({} as T);
 }

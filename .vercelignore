@@ -1,0 +1,14 @@
+# Vercel Ignore File
+# Files listed here will NOT be uploaded to Vercel.
+# Since this file exists, .gitignore is ignored for upload purposes.
+
+.git
+node_modules
+.env
+.env.*
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+coverage
+# We purposely do NOT include public/game/Build here so it gets uploaded

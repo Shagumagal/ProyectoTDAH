@@ -96,7 +96,7 @@ export function prepareInputVector(detalles: UnityGameData, alumno: StudentProfi
     // 365.25 considera años bisiestos para mayor precisión
     let age = (now.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
     
-    // Regla: Si edad < 9.0, fuerza el valor a 10.0.
+    
     if (age < 9.0) {
         age = 10.0;
     }

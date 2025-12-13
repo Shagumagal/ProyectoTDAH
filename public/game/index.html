@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Unity Web Player | TDAH</title>
-    <link rel="shortcut icon" href="/game/TemplateData/favicon.ico">
-    <link rel="stylesheet" href="/game/TemplateData/style.css">
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <link rel="stylesheet" href="TemplateData/style.css">
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -51,13 +51,13 @@
         updateBannerVisibility();
       }
 
-      var buildUrl = "/game/Build";
-      var loaderUrl = buildUrl + "/game.loader.js";
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/buildvercel.loader.js";
       var config = {
         arguments: [],
-        dataUrl: buildUrl + "/game.data",
-        frameworkUrl: buildUrl + "/game.framework.js",
-        codeUrl: buildUrl + "/game.wasm",
+        dataUrl: buildUrl + "/buildvercel.data",
+        frameworkUrl: buildUrl + "/buildvercel.framework.js",
+        codeUrl: buildUrl + "/buildvercel.wasm",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
         productName: "TDAH",

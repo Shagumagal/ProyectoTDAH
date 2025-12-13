@@ -12,9 +12,6 @@ build/
 .vite/
 coverage/
 
-# Env
-.env
-.env.*
 
 # Editores / SO
 .vscode/
@@ -28,3 +25,4 @@ docker-compose.override.yml
 public/game/Build/
 public/game/Build/*
 public/game/build/
+.vercel

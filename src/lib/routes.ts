@@ -4,6 +4,7 @@ export const ROUTES = {
   usuarios: "/app/usuarios",
   videojuego: "/app/videojuego",
   resultados: "/app/resultados",
+  resultadosJuego: "/app/resultados-juego", // NUEVA RUTA
   resultadoById: "/app/resultados/:id",
   authCode: "/auth/code",
   alumnos: "/app/alumnos",
