@@ -1,5 +1,5 @@
 // src/features/game/GamePage.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../lib/http";
 import { ROUTES } from "../../lib/routes";
@@ -43,32 +43,82 @@ function getUserInfoFromToken(token: string | null) {
 }
 
 type GameMode = "local" | "itch";
+type WarmupStatus = "idle" | "waking" | "alive" | "error";
 
 export const GamePage: React.FC = () => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [gameMode, setGameMode] = useState<GameMode>("itch");
+  const [warmup, setWarmup] = useState<WarmupStatus>("idle");
+  const [warmupSeconds, setWarmupSeconds] = useState(0);
+
+  // Ping /health en Render para "despertar" el servidor
+  const handleWarmup = useCallback(async () => {
+    setWarmup("waking");
+    setWarmupSeconds(0);
+    const interval = setInterval(() => setWarmupSeconds(s => s + 1), 1000);
+    try {
+      const res = await fetch(`${RENDER_API_URL}/health`, {
+        method: "GET",
+        signal: AbortSignal.timeout(70_000), // 70s máx
+      });
+      clearInterval(interval);
+      if (res.ok) {
+        setWarmup("alive");
+      } else {
+        setWarmup("error");
+      }
+    } catch {
+      clearInterval(interval);
+      setWarmup("error");
+    }
+  }, []);
+
+  // Si se cambia de modo, resetear el estado de warmup
+  useEffect(() => {
+    setWarmup("idle");
+    setWarmupSeconds(0);
+  }, [gameMode]);
 
   const token = localStorage.getItem("auth_token");
   const participantId = useMemo(() => getParticipantIdFromToken(token), [token]);
   const userInfo = useMemo(() => getUserInfoFromToken(token), [token]);
 
-  // URL local → abre el build embebido en /game/index.html (usa backend por variable de entorno)
+  // URL local → usa el token directamente (funciona en dev sin exchange)
   const localGameUrl = useMemo(() => {
     if (!token) return null;
     const params = new URLSearchParams({ token, pid: participantId, apiUrl: API_URL });
     return `/game/index.html?${params.toString()}`;
   }, [token, participantId]);
 
-  // URL Itch.io → abre el juego desplegado apuntando SIEMPRE al backend de Render
-  const itchGameUrl = useMemo(() => {
+  // Para Itch.io: genera un code via /game/start justo antes de abrir el juego
+  const buildItchUrl = useCallback(async (): Promise<string | null> => {
     if (!token) return null;
-    const params = new URLSearchParams({ token, pid: participantId, apiUrl: RENDER_API_URL });
-    return `${ITCH_GAME_URL}?${params.toString()}`;
-  }, [token, participantId]);
+    try {
+      const apiBase = gameMode === "itch" ? RENDER_API_URL : API_URL;
+      const res = await fetch(`${apiBase}/game/start`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) {
+        console.error("Error generando code:", res.status, await res.text());
+        return null;
+      }
+      const { code } = await res.json();
+      const params = new URLSearchParams({ code, pid: participantId, apiUrl: RENDER_API_URL });
+      return `${ITCH_GAME_URL}?${params.toString()}`;
+    } catch (e) {
+      console.error("Error en buildItchUrl:", e);
+      return null;
+    }
+  }, [token, participantId, gameMode]);
 
-  const activeUrl = gameMode === "local" ? localGameUrl : itchGameUrl;
+  // URL activa para mostrar/copiar (solo preview — la real se genera al confirmar)
+  const activeUrl = gameMode === "local" ? localGameUrl : `${ITCH_GAME_URL}?code=<generado al iniciar>&apiUrl=${RENDER_API_URL}`;
 
   const handleCopyUrl = () => {
     if (activeUrl) {
@@ -80,10 +130,18 @@ export const GamePage: React.FC = () => {
 
   const handleStartGame = () => setShowConsentDialog(true);
 
-  const handleConfirmStart = () => {
-    if (activeUrl) {
-      window.open(activeUrl, "_blank");
-      setShowConsentDialog(false);
+  const handleConfirmStart = async () => {
+    setShowConsentDialog(false);
+    if (gameMode === "local" && localGameUrl) {
+      window.open(localGameUrl, "_blank");
+      return;
+    }
+    // Modo Itch.io: generar code válido desde el backend
+    const url = await buildItchUrl();
+    if (url) {
+      window.open(url, "_blank");
+    } else {
+      alert("No se pudo generar el enlace de sesión. Verifica que el servidor esté activo e intenta nuevamente.");
     }
   };
 
@@ -231,12 +289,93 @@ export const GamePage: React.FC = () => {
 
         {activeUrl && (
           <div className="space-y-4">
+
+            {/* ── WARMUP PANEL (solo Itch.io) ── */}
+            {gameMode === "itch" && (
+              <div className={`rounded-xl border-2 p-4 transition-all ${
+                warmup === "alive"
+                  ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20"
+                  : warmup === "error"
+                  ? "border-red-400 bg-red-50 dark:bg-red-900/20"
+                  : warmup === "waking"
+                  ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20"
+                  : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
+              }`}>
+                {warmup === "idle" && (
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-bold text-slate-800 dark:text-white text-sm">⚡ Paso 1: Despertar servidor</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Render Free se apaga si no se usa. Haz clic para activarlo antes de jugar (tarda ~30-50s).
+                      </p>
+                    </div>
+                    <button
+                      id="btn-warmup"
+                      onClick={handleWarmup}
+                      className="shrink-0 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors shadow-md"
+                    >
+                      Despertar
+                    </button>
+                  </div>
+                )}
+
+                {warmup === "waking" && (
+                  <div className="flex items-center gap-3">
+                    <svg className="w-6 h-6 text-amber-500 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    <div>
+                      <p className="font-bold text-amber-700 dark:text-amber-300 text-sm">Despertando servidor… {warmupSeconds}s</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">Esto puede tardar hasta 60 segundos, por favor espera.</p>
+                    </div>
+                  </div>
+                )}
+
+                {warmup === "alive" && (
+                  <div className="flex items-center gap-3">
+                    <svg className="w-6 h-6 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                      <p className="font-bold text-emerald-700 dark:text-emerald-300 text-sm">✅ Servidor activo ({warmupSeconds}s) — ¡Ya puedes abrir el juego!</p>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400">El servidor está despierto y listo para recibir tus resultados.</p>
+                    </div>
+                  </div>
+                )}
+
+                {warmup === "error" && (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <svg className="w-6 h-6 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/>
+                      </svg>
+                      <div>
+                        <p className="font-bold text-red-700 dark:text-red-300 text-sm">No se pudo conectar con el servidor</p>
+                        <p className="text-xs text-red-500 mt-0.5">Verifica tu conexión o intenta nuevamente.</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleWarmup}
+                      className="shrink-0 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── BOTÓN LANZAR ── */}
             <button
               id="btn-start-game"
-              className={`w-full px-6 py-4 rounded-xl text-white font-semibold text-lg transition-all transform hover:scale-[1.02] shadow-lg ${
-                gameMode === "itch"
-                  ? "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600"
-                  : "bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
+              disabled={gameMode === "itch" && warmup !== "alive"}
+              className={`w-full px-6 py-4 rounded-xl text-white font-semibold text-lg transition-all shadow-lg ${
+                gameMode === "itch" && warmup !== "alive"
+                  ? "opacity-40 cursor-not-allowed bg-slate-400"
+                  : gameMode === "itch"
+                  ? "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 transform hover:scale-[1.02]"
+                  : "bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 transform hover:scale-[1.02]"
               }`}
               onClick={handleStartGame}
             >
@@ -245,7 +384,9 @@ export const GamePage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                {gameMode === "itch" ? "Abrir juego en Itch.io" : "Abrir juego local"}
+                {gameMode === "itch"
+                  ? warmup === "alive" ? "🎮 Abrir juego en Itch.io" : "Primero despierta el servidor"
+                  : "Abrir juego local"}
               </div>
             </button>
 
