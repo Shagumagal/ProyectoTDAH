@@ -1,6 +1,7 @@
-// src/features/students/pages/StudentsPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@mui/material";
+import { RefreshCw } from "lucide-react";
 import { ROUTES } from "../../../lib/routes";
 import type { Usuario } from "../../../lib/types";
 import Modal from "../../../componentes/Modal";
@@ -58,14 +59,33 @@ export default function StudentsPage() {
     setAlumnos((data || []).filter((u) => (u.rol || "").toLowerCase() === "alumno"));
   }
 
+  const [filterStatus, setFilterStatus] = useState<"all" | "Activo" | "Inactivo">("all");
+  const [filterGender, setFilterGender] = useState<"all" | "masculino" | "femenino">("all");
+
   const rows = useMemo(() => {
+    let result = alumnos;
+
+    // 1. Filtrar por estado
+    if (filterStatus !== "all") {
+      result = result.filter((u) => u.estado === filterStatus);
+    }
+
+    // 2. Filtrar por género
+    if (filterGender !== "all") {
+      result = result.filter((u) => u.genero === filterGender);
+    }
+
+    // 3. Búsqueda de texto
     const term = q.trim().toLowerCase();
-    if (!term) return alumnos;
-    return alumnos.filter((u) =>
-      [u.nombre || "", u.apellido || "", u.correo || "", u.username || "", u.estado || ""]
-        .join(" ").toLowerCase().includes(term)
-    );
-  }, [alumnos, q]);
+    if (term) {
+      result = result.filter((u) =>
+        [u.nombre || "", u.apellido || "", u.correo || "", u.username || "", u.estado || ""]
+          .join(" ").toLowerCase().includes(term)
+      );
+    }
+
+    return result;
+  }, [alumnos, q, filterStatus, filterGender]);
 
   async function handleSubmit(data: {
     id?: string;
@@ -158,16 +178,47 @@ export default function StudentsPage() {
             <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Alumnos</h1>
             <p className="text-sm text-slate-600 dark:text-slate-300">Listado, registro y edición de alumnos.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="rounded-xl px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-none outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="Activo">Activos</option>
+              <option value="Inactivo">Inactivos</option>
+            </select>
+
+            <select
+              value={filterGender}
+              onChange={(e) => setFilterGender(e.target.value as any)}
+              className="rounded-xl px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-none outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">Todos los géneros</option>
+              <option value="masculino">Masculino</option>
+              <option value="femenino">Femenino</option>
+            </select>
+
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar por nombre, email, usuario…"
-              className="rounded-xl px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
+              placeholder="Buscar..."
+              className="w-32 sm:w-48 rounded-xl px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 border-none outline-none focus:ring-2 focus:ring-indigo-500"
             />
+            
+            <Button 
+              variant="contained" 
+              color="secondary"
+              startIcon={<RefreshCw size={18} />}
+              onClick={refresh}
+              sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600 }}
+            >
+              Actualizar
+            </Button>
+
             <button
               onClick={() => setDialog({ mode: "create" })}
-              className="rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold shadow-lg shadow-indigo-600/20"
+              className="rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold shadow-lg shadow-indigo-600/20 whitespace-nowrap"
             >
               Nuevo alumno
             </button>
@@ -207,6 +258,7 @@ export default function StudentsPage() {
                     <th className="py-2 pr-4">Nombre completo</th>
                     <th className="py-2 pr-4">Correo</th>
                     <th className="py-2 pr-4">Usuario</th>
+                    <th className="py-2 pr-4">Fecha Creación</th>
                     <th className="py-2 pr-4">Estado</th>
                     <th className="py-2">Acciones</th>
                   </tr>
@@ -217,6 +269,9 @@ export default function StudentsPage() {
                       <td className="py-3 pr-4">{u.nombre} {u.apellido}</td>
                       <td className="py-3 pr-4">{u.correo ?? <span className="text-slate-400">—</span>}</td>
                       <td className="py-3 pr-4">{u.username ?? <span className="text-slate-400">—</span>}</td>
+                      <td className="py-3 pr-4 text-slate-500 dark:text-slate-400">
+                        {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+                      </td>
                       <td className="py-3 pr-4">
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${u.estado === "Activo"
@@ -247,7 +302,7 @@ export default function StudentsPage() {
                           >
                             Análisis IA
                           </button>
-                          {!u.correo && u.username && (
+                          {!!u.username && (
                             <button
                               onClick={() => handleRegenerateCode(u.id)}
                               className="rounded-lg px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/60 flex items-center gap-1"

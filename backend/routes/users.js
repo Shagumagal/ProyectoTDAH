@@ -73,7 +73,8 @@ router.get("/", async (req, res) => {
         u.activo,
         r.nombre AS rol_db,
         u.fecha_nacimiento,
-        u.genero
+        u.genero,
+        u.created_at
       FROM app.usuarios u
       JOIN app.roles r ON r.id = u.rol_id
       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
@@ -95,6 +96,7 @@ router.get("/", async (req, res) => {
         estado: x.activo ? "Activo" : "Inactivo",
         fecha_nacimiento: x.fecha_nacimiento || null,
         genero: x.genero || null,
+        created_at: x.created_at || null,
       };
     });
 
