@@ -25,6 +25,11 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   const b = req.body;
 
+  // LOG: Mostrar exactamente qué llegó desde Unity (visible en Render Logs)
+  console.log("═══ POST /resultados ═══");
+  console.log("Origin:", req.headers.origin);
+  console.log("Body recibido:", JSON.stringify(b, null, 2));
+
   // Validaciones mínimas
   if (!b.alumno_id) return res.status(400).json({ error: "alumno_id requerido" });
   if (!b.prueba)    return res.status(400).json({ error: "prueba requerida (gng/sst/tol)" });
@@ -33,8 +38,12 @@ router.post("/", async (req, res) => {
 
   try {
     // 1) prueba_id desde app.pruebas
+    console.log("Buscando prueba con codigo:", b.prueba);
     const pr = await query("SELECT id FROM app.pruebas WHERE codigo = $1", [b.prueba]);
-    if (pr.rowCount === 0) return res.status(400).json({ error: "prueba no reconocida" });
+    if (pr.rowCount === 0) {
+      console.error("Prueba no encontrada en DB:", b.prueba);
+      return res.status(400).json({ error: `prueba '${b.prueba}' no encontrada en la base de datos. Códigos válidos: gng, sst, tol` });
+    }
     const prueba_id = pr.rows[0].id;
 
     // 2) crear sesión
