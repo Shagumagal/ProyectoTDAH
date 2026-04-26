@@ -15,29 +15,47 @@ const gameRoutes = require("./routes/game");
 const app = express();
 
 // --- CORS ---
-const allowedOrigins = (process.env.CORS_ORIGINS?.split(',') ?? [
+// Orígenes base (desde .env o valores por defecto para dev local)
+const baseOrigins = (process.env.CORS_ORIGINS?.split(',') ?? [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://proyecto-tdah.vercel.app"
 ]).map(o => o.trim());
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+// Patrones adicionales que siempre se permiten (Itch.io y su CDN)
+const ALWAYS_ALLOWED_PATTERNS = [
+  /^https?:\/\/([\w-]+\.)?itch\.io$/,
+  /^https?:\/\/([\w-]+\.)?hwcdn\.net$/,
+  /^https?:\/\/([\w-]+\.)?unity\.com$/,
+];
+
+function isOriginAllowed(origin) {
+  // Sin origin (curl, Postman, apps móviles) → permitir
+  if (!origin) return true;
+  // Está en la lista explícita
+  if (baseOrigins.includes(origin)) return true;
+  // Coincide con algún patrón wildcard
+  return ALWAYS_ALLOWED_PATTERNS.some(re => re.test(origin));
+}
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      console.warn("CORS bloqueado para:", origin);
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
 
 // Preflight (OPTIONS)
-app.options(
-  "*",
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
+app.options("*", cors(corsOptions));
 
 // --- Middlewares base ---
 app.use(express.json());

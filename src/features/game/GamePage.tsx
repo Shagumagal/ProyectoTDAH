@@ -5,6 +5,11 @@ import { API_URL } from "../../lib/http";
 import { ROUTES } from "../../lib/routes";
 import ConfirmDialog from "../../componentes/ConfirmDialog";
 
+// URL pública del backend en Render (para cuando el juego corre en Itch.io)
+const RENDER_API_URL = "https://proyectotdah.onrender.com";
+// URL del juego en Itch.io
+const ITCH_GAME_URL = "https://shagumagal.itch.io/tdah-ga";
+
 function parseJwt(token: string): any {
   try {
     const base64 = token.split(".")[1];
@@ -18,7 +23,6 @@ function parseJwt(token: string): any {
 function getParticipantIdFromToken(token: string | null): string {
   if (!token) return "demo_user";
   const p = parseJwt(token);
-  // Ajusta estos campos a lo que lleve tu JWT
   return (
     p?.username?.toString() ||
     p?.user_name?.toString() ||
@@ -38,40 +42,47 @@ function getUserInfoFromToken(token: string | null) {
   };
 }
 
+type GameMode = "local" | "itch";
+
 export const GamePage: React.FC = () => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const [gameMode, setGameMode] = useState<GameMode>("itch");
 
   const token = localStorage.getItem("auth_token");
   const participantId = useMemo(() => getParticipantIdFromToken(token), [token]);
   const userInfo = useMemo(() => getUserInfoFromToken(token), [token]);
 
-  const gameUrl = useMemo(() => {
+  // URL local → abre el build embebido en /game/index.html (usa backend por variable de entorno)
+  const localGameUrl = useMemo(() => {
     if (!token) return null;
-    const params = new URLSearchParams({
-      token,
-      pid: participantId,
-      apiUrl: API_URL,
-    });
+    const params = new URLSearchParams({ token, pid: participantId, apiUrl: API_URL });
     return `/game/index.html?${params.toString()}`;
   }, [token, participantId]);
 
+  // URL Itch.io → abre el juego desplegado apuntando SIEMPRE al backend de Render
+  const itchGameUrl = useMemo(() => {
+    if (!token) return null;
+    const params = new URLSearchParams({ token, pid: participantId, apiUrl: RENDER_API_URL });
+    return `${ITCH_GAME_URL}?${params.toString()}`;
+  }, [token, participantId]);
+
+  const activeUrl = gameMode === "local" ? localGameUrl : itchGameUrl;
+
   const handleCopyUrl = () => {
-    if (gameUrl) {
-      navigator.clipboard.writeText(gameUrl);
+    if (activeUrl) {
+      navigator.clipboard.writeText(activeUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
-  const handleStartGame = () => {
-    setShowConsentDialog(true);
-  };
+  const handleStartGame = () => setShowConsentDialog(true);
 
   const handleConfirmStart = () => {
-    if (gameUrl) {
-      window.open(gameUrl, "_blank");
+    if (activeUrl) {
+      window.open(activeUrl, "_blank");
       setShowConsentDialog(false);
     }
   };
@@ -145,13 +156,88 @@ export const GamePage: React.FC = () => {
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Iniciar evaluación</h2>
         <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
-          Al iniciar el juego, tu sesión será enviada automáticamente al módulo de Unity para registrar tus resultados de forma segura.
+          Selecciona la versión del juego que deseas abrir. La versión <strong>Itch.io</strong> usa el servidor en la nube y es la recomendada para evaluaciones reales.
         </p>
 
-        {gameUrl && (
+        {/* Mode Selector */}
+        <div className="flex gap-3 mb-6">
+          <button
+            id="btn-mode-itch"
+            onClick={() => setGameMode("itch")}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm border-2 transition-all ${
+              gameMode === "itch"
+                ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
+                : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-emerald-300"
+            }`}
+          >
+            {/* Globe icon */}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" strokeWidth={2}/>
+              <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" strokeWidth={2}/>
+            </svg>
+            Itch.io (Recomendado)
+            {gameMode === "itch" && (
+              <span className="ml-1 text-xs bg-emerald-500 text-white px-2 py-0.5 rounded-full">Activo</span>
+            )}
+          </button>
+
+          <button
+            id="btn-mode-local"
+            onClick={() => setGameMode("local")}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm border-2 transition-all ${
+              gameMode === "local"
+                ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
+                : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-300"
+            }`}
+          >
+            {/* Server icon */}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="2" y="3" width="20" height="4" rx="1" strokeWidth={2}/>
+              <rect x="2" y="10" width="20" height="4" rx="1" strokeWidth={2}/>
+              <rect x="2" y="17" width="20" height="4" rx="1" strokeWidth={2}/>
+              <circle cx="18" cy="5" r="1" fill="currentColor"/>
+              <circle cx="18" cy="12" r="1" fill="currentColor"/>
+              <circle cx="18" cy="19" r="1" fill="currentColor"/>
+            </svg>
+            Local (dev)
+            {gameMode === "local" && (
+              <span className="ml-1 text-xs bg-indigo-500 text-white px-2 py-0.5 rounded-full">Activo</span>
+            )}
+          </button>
+        </div>
+
+        {/* Mode info banner */}
+        {gameMode === "itch" ? (
+          <div className="mb-4 flex items-start gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+            <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="text-sm text-emerald-800 dark:text-emerald-200">
+              <p className="font-bold">Modo Itch.io — Servidor en la nube</p>
+              <p className="mt-0.5 text-emerald-700 dark:text-emerald-300">Los datos se guardan en <strong>proyectotdah.onrender.com</strong>. Recomendado para evaluaciones con alumnos reales.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-4 flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+            <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+            </svg>
+            <div className="text-sm text-amber-800 dark:text-amber-200">
+              <p className="font-bold">Modo Local — Solo en esta máquina</p>
+              <p className="mt-0.5 text-amber-700 dark:text-amber-300">El juego usa el build embebido y apunta a <strong>{API_URL}</strong>. Útil para pruebas de desarrollo.</p>
+            </div>
+          </div>
+        )}
+
+        {activeUrl && (
           <div className="space-y-4">
             <button
-              className="w-full px-6 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold text-lg transition-all transform hover:scale-[1.02] shadow-lg"
+              id="btn-start-game"
+              className={`w-full px-6 py-4 rounded-xl text-white font-semibold text-lg transition-all transform hover:scale-[1.02] shadow-lg ${
+                gameMode === "itch"
+                  ? "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600"
+                  : "bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
+              }`}
               onClick={handleStartGame}
             >
               <div className="flex items-center justify-center gap-3">
@@ -159,14 +245,14 @@ export const GamePage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Iniciar juego en nueva pestaña
+                {gameMode === "itch" ? "Abrir juego en Itch.io" : "Abrir juego local"}
               </div>
             </button>
 
             {/* Debug URL */}
             <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">URL generada (debug):</p>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">URL generada:</p>
                 <button
                   onClick={handleCopyUrl}
                   className="text-xs px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 text-slate-700 dark:text-slate-200 font-medium transition-colors"
@@ -174,24 +260,7 @@ export const GamePage: React.FC = () => {
                   {copied ? "✓ Copiado" : "Copiar URL"}
                 </button>
               </div>
-              <code className="text-xs text-slate-600 dark:text-slate-400 break-all block">{gameUrl}</code>
-            </div>
-
-            {/* Info Alert */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-              <div className="flex gap-3">
-                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div className="text-sm text-blue-800 dark:text-blue-200">
-                  <p className="font-semibold mb-1">Información importante:</p>
-                  <ul className="list-disc list-inside space-y-1 text-blue-700 dark:text-blue-300">
-                    <li>El juego se abrirá en una nueva pestaña</li>
-                    <li>Tu progreso se guardará automáticamente</li>
-                    <li>Puedes cerrar y volver a abrir el juego cuando quieras</li>
-                  </ul>
-                </div>
-              </div>
+              <code className="text-xs text-slate-600 dark:text-slate-400 break-all block">{activeUrl}</code>
             </div>
           </div>
         )}
@@ -203,7 +272,7 @@ export const GamePage: React.FC = () => {
         onClose={() => setShowConsentDialog(false)}
         onConfirm={handleConfirmStart}
         title="Consentimiento Informado"
-        description="Estás a punto de iniciar un juego interactivo diseñado para evaluar indicadores relacionados con el TDAH (Trastorno por Déficit de Atención e Hiperactividad). Los resultados son métricas de apoyo, NO un diagnóstico médico. Esta herramienta NO reemplaza una evaluación clínica profesional. Los datos ayudan al psicólogo a obtener información complementaria. Un diagnóstico de TDAH requiere evaluación integral por un especialista. Tus datos están protegidos y son confidenciales. Solo profesionales autorizados dentro de la institución del colegio Insituto Americano pueden acceder a los resultados."
+        description="Estás a punto de iniciar un juego interactivo diseñado para evaluar indicadores relacionados con el TDAH (Trastorno por Déficit de Atención e Hiperactividad). Los resultados son métricas de apoyo, NO un diagnóstico médico. Esta herramienta NO reemplaza una evaluación clínica profesional. Los datos ayudan al psicólogo a obtener información complementaria. Un diagnóstico de TDAH requiere evaluación integral por un especialista. Tus datos están protegidos y son confidenciales. Solo profesionales autorizados dentro de la institución del colegio Instituto Americano pueden acceder a los resultados."
         confirmText="Aceptar y continuar"
         cancelText="Cancelar"
       />
