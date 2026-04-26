@@ -22,9 +22,10 @@ const baseOrigins = (process.env.CORS_ORIGINS?.split(',') ?? [
   "https://proyecto-tdah.vercel.app"
 ]).map(o => o.trim());
 
-// Patrones adicionales que siempre se permiten (Itch.io y su CDN)
+// Patrones adicionales que siempre se permiten (Itch.io y sus CDNs reales)
 const ALWAYS_ALLOWED_PATTERNS = [
   /^https?:\/\/([\w-]+\.)?itch\.io$/,
+  /^https?:\/\/([\w-]+\.)?itch\.zone$/,       // CDN principal de Itch.io
   /^https?:\/\/([\w-]+\.)?hwcdn\.net$/,
   /^https?:\/\/([\w-]+\.)?unity\.com$/,
 ];
@@ -78,7 +79,7 @@ app.use("/api/ai-analysis", require("./routes/ai-analysis"));
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`API escuchando en http://localhost:${PORT}`);
-  console.log("CORS_ORIGINS:", allowedOrigins);
+  console.log("CORS_ORIGINS (base):", baseOrigins);
   console.log("JWT loaded?", !!process.env.JWT_SECRET);
 });
 
