@@ -28,7 +28,7 @@ const ALLOWED_ROUTES: Record<Role, string[]> = {
   admin:     [ROUTES.usuarios, ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
   profesor:  [ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
   psicologo: [ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados, ROUTES.analisisIA],
-  estudiante:[ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados, ROUTES.resultadosJuego],
+  estudiante:[ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultadosJuego],
 };
 
 function DarkModeToggle() {

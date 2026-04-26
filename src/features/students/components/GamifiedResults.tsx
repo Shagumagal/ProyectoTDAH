@@ -88,13 +88,38 @@ export default function GamifiedResults({ results }: InternalProps) {
     );
   }
 
+  const xpLevel = Math.round(
+    (stats.gng.acc + stats.sst.ctrl + (stats.tol.exists ? stats.tol.score : 0)) / 
+    (stats.tol.exists ? 3 : 2)
+  );
+
   return (
     <section className="space-y-8 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl">
-          <Trophy className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+      {/* Resumen Global (Nivel/Puntuación) */}
+      <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-3xl p-1 shadow-lg">
+        <div className="bg-white dark:bg-slate-900 rounded-[22px] p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+           <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
+                 <Zap className="w-8 h-8 text-indigo-500" />
+              </div>
+              <div>
+                 <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-wider">Energía Total</h3>
+                 <p className="text-sm text-slate-500 dark:text-slate-400">Puntaje promedio de tus misiones</p>
+              </div>
+           </div>
+           
+           <div className="flex-1 w-full max-w-md">
+              <div className="flex justify-between items-end mb-2">
+                 <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Nivel de Habilidad</span>
+                 <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-pink-500">
+                    {xpLevel} / 100
+                 </span>
+              </div>
+              <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                 <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full animate-[pulse_2s_ease-in-out_infinite]" style={{ width: `${xpLevel}%` }} />
+              </div>
+           </div>
         </div>
-        <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Sala de Trofeos</h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
