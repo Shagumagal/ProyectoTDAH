@@ -23,12 +23,14 @@ const baseOrigins = (process.env.CORS_ORIGINS?.split(',') ?? [
 ]).map(o => o.trim());
 
 // Patrones adicionales que siempre se permiten (Itch.io y sus CDNs reales)
+// NOTA: Usamos ([\w-]+\.)* en vez de ([\w-]+\.)? para soportar
+// subdominios multinivel como v6p9d9t4.ssl.hwcdn.net
 const ALWAYS_ALLOWED_PATTERNS = [
-  /^https?:\/\/([\w-]+\.)?itch\.io$/,
-  /^https?:\/\/([\w-]+\.)?itch\.zone$/,       // CDN principal de Itch.io
-  /^https?:\/\/([\w-]+\.)?hwcdn\.net$/,
-  /^https?:\/\/([\w-]+\.)?itchnic\.com$/,     // Alternativa Itch.io CDN
-  /^https?:\/\/([\w-]+\.)?unity\.com$/,
+  /^https?:\/\/([\w-]+\.)*itch\.io$/,
+  /^https?:\/\/([\w-]+\.)*itch\.zone$/,       // CDN principal de Itch.io
+  /^https?:\/\/([\w-]+\.)*hwcdn\.net$/,
+  /^https?:\/\/([\w-]+\.)*itchnic\.com$/,     // Alternativa Itch.io CDN
+  /^https?:\/\/([\w-]+\.)*unity\.com$/,
 ];
 
 function isOriginAllowed(origin) {
