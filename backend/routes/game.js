@@ -7,21 +7,100 @@ const { requireAuth, getToken } = require("../middlewares/auth");
 
 const router = express.Router();
 
+// Helper: IP del cliente real (detrás de proxy de Render)
+function getClientIp(req) {
+  const xff = req.headers["x-forwarded-for"];
+  if (xff) return xff.split(",")[0].trim();
+  return req.ip || req.socket?.remoteAddress || "unknown";
+}
+
 /** POST /game/start (Auth normal)
- * Crea un código efímero y lo devuelve. El front armará la URL del juego con ?code=...
+ * Crea un código efímero y lo devuelve. Guarda la IP del cliente para claim-pending.
  */
 router.post("/start", requireAuth, async (req, res) => {
   try {
     const code = crypto.randomBytes(24).toString("base64url");
-    const origin = req.headers.origin || null;
+    const clientIp = getClientIp(req);
     await pool.query(
       `INSERT INTO app.game_sessions(user_id, code, allowed_origin, expires_at)
        VALUES ($1,$2,$3, now() + interval '15 minutes')`,
-      [req.auth.userId, code, origin]
+      [req.auth.userId, code, clientIp]
     );
+    console.log(`[game/start] Session created for user ${req.auth.userId} (IP: ${clientIp})`);
     res.json({ code });
   } catch (e) {
     console.error("POST /game/start error:", e);
+    res.status(500).json({ error: "SERVER_ERROR" });
+  }
+});
+
+/** GET /game/claim-pending (Sin Auth)
+ * Usado por Unity cuando NO puede leer el ?code= desde el iframe de Itch.io.
+ * Busca la sesión pendiente más reciente por IP del cliente.
+ */
+router.get("/claim-pending", async (req, res) => {
+  try {
+    const clientIp = getClientIp(req);
+    console.log(`[game/claim-pending] IP solicitante: ${clientIp}`);
+
+    // 1) Buscar por IP (más seguro)
+    let result = await pool.query(
+      `UPDATE app.game_sessions
+         SET consumed_at = now()
+       WHERE id = (
+         SELECT id FROM app.game_sessions
+          WHERE consumed_at IS NULL
+            AND expires_at > now()
+            AND allowed_origin = $1
+          ORDER BY created_at DESC
+          LIMIT 1
+       )
+       RETURNING user_id`,
+      [clientIp]
+    );
+
+    // 2) Fallback: sesión más reciente (últimos 5 min) sin importar IP
+    if (!result.rows.length) {
+      result = await pool.query(
+        `UPDATE app.game_sessions
+           SET consumed_at = now()
+         WHERE id = (
+           SELECT id FROM app.game_sessions
+            WHERE consumed_at IS NULL
+              AND expires_at > now()
+              AND created_at > now() - interval '5 minutes'
+            ORDER BY created_at DESC
+            LIMIT 1
+         )
+         RETURNING user_id`
+      );
+    }
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "NO_PENDING_SESSION" });
+    }
+
+    const userId = result.rows[0].user_id;
+    const info = await pool.query(
+      `SELECT u.id, r.nombre AS role, u.nombre
+         FROM app.usuarios u
+         JOIN app.roles r ON r.id = u.rol_id
+        WHERE u.id = $1`,
+      [userId]
+    );
+    if (!info.rows.length) return res.status(404).json({ error: "USER_NOT_FOUND" });
+
+    const user = info.rows[0];
+    const gameJwt = jwt.sign(
+      { sub: user.id, role: user.role, scope: "game", aud: "unity" },
+      process.env.JWT_SECRET,
+      { expiresIn: "20m" }
+    );
+
+    console.log(`[game/claim-pending] ✅ Session claimed for user ${user.id} (${user.nombre})`);
+    res.json({ game_jwt: gameJwt, user: { id: user.id, role: user.role, nombre: user.nombre } });
+  } catch (e) {
+    console.error("GET /game/claim-pending error:", e);
     res.status(500).json({ error: "SERVER_ERROR" });
   }
 });
