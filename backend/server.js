@@ -27,12 +27,13 @@ const ALWAYS_ALLOWED_PATTERNS = [
   /^https?:\/\/([\w-]+\.)?itch\.io$/,
   /^https?:\/\/([\w-]+\.)?itch\.zone$/,       // CDN principal de Itch.io
   /^https?:\/\/([\w-]+\.)?hwcdn\.net$/,
+  /^https?:\/\/([\w-]+\.)?itchnic\.com$/,     // Alternativa Itch.io CDN
   /^https?:\/\/([\w-]+\.)?unity\.com$/,
 ];
 
 function isOriginAllowed(origin) {
-  // Sin origin (curl, Postman, apps móviles) → permitir
-  if (!origin) return true;
+  // Sin origin o origin opaco (iframes en itch.io aveces envían "null")
+  if (!origin || origin === "null") return true;
   // Está en la lista explícita
   if (baseOrigins.includes(origin)) return true;
   // Coincide con algún patrón wildcard
