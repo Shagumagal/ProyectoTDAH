@@ -192,7 +192,7 @@ router.post("/submit", requireGameAuth, async (req, res) => {
       [
         alumnoId, b.prueba || "gng",
         b.started_at, b.ended_at,
-        b.rt_promedio_ms, b.rt_p50_ms, b.rt_p90_ms, b.rt_sd_ms, b.rt_min_ms, b.rt_max_ms,
+        b.rt_promedio_ms, (b.rt_p50_ms ?? b.rt_median_ms ?? null), b.rt_p90_ms, b.rt_sd_ms, b.rt_min_ms, b.rt_max_ms,
         b.errores_omision, b.errores_comision, b.aciertos, b.total_estimulos,
         b.dprime, b.beta, b.posible_tdah ?? null, b.tipo_tdah ?? "ninguno", b.riesgo ?? null,
         b.detalles ?? {}

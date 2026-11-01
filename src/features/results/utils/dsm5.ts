@@ -56,6 +56,12 @@ export function inferDSM5(r: ResultadosAlumno): Criterio[] {
     : "sin"
     : "sin";
 
+  const h = tl?.hyperactivity ?? g?.hyperactivity ?? s?.hyperactivity;
+  const evFrenetic = scoreToEvidence(h?.freneticMovement ?? 0, { weak: 0.15, mod: 0.30, strong: 0.50 });
+  const evUnnecClicks = scoreToEvidence(h?.unnecessaryClicks ?? 0, { weak: 3, mod: 6, strong: 12 });
+  const evHyperMotor = maxEvidence([evFrenetic, evUnnecClicks]);
+  const evFastGuess = scoreToEvidence(g?.fastGuessRate ?? 0, { weak: 0.04, mod: 0.07, strong: 0.12 });
+
   const A1: Criterio[] = [
     { id: "A1-1", dominio: "Desatención", label: "Comete errores por descuido / falta de atención a detalles",
       medidoPor: ["Comisiones (Go/No-Go)", "Comisiones (Stop)"],
@@ -85,13 +91,20 @@ export function inferDSM5(r: ResultadosAlumno): Criterio[] {
   ];
 
   const A2: Criterio[] = [
-    { id: "A2-1", dominio: "Hiperactividad/Impulsividad", label: "Se mueve inquieto con manos/pies", medidoPor: ["No medido"], evidencia: "sin" },
-    { id: "A2-2", dominio: "Hiperactividad/Impulsividad", label: "Se levanta cuando debe estar sentado", medidoPor: ["No medido"], evidencia: "sin" },
-    { id: "A2-3", dominio: "Hiperactividad/Impulsividad", label: "Corre o trepa inapropiadamente", medidoPor: ["No medido"], evidencia: "sin" },
-    { id: "A2-4", dominio: "Hiperactividad/Impulsividad", label: "Incapaz de jugar tranquilamente", medidoPor: ["No medido"], evidencia: "sin" },
+    { id: "A2-1", dominio: "Hiperactividad/Impulsividad", label: "Se mueve inquieto con manos/pies",
+      medidoPor: ["Movimiento errático del cursor", "Clics innecesarios (Fidgeting)"],
+      evidencia: evHyperMotor,
+      nota: "Evaluado mediante telemetría cinemática del ratón y pulsaciones sin función en el juego.",
+    },
+    { id: "A2-2", dominio: "Hiperactividad/Impulsividad", label: "Se levanta cuando debe estar sentado", medidoPor: ["Observación en aula"], evidencia: "sin" },
+    { id: "A2-3", dominio: "Hiperactividad/Impulsividad", label: "Corre o trepa inapropiadamente", medidoPor: ["Observación en aula"], evidencia: "sin" },
+    { id: "A2-4", dominio: "Hiperactividad/Impulsividad", label: "Incapaz de jugar tranquilamente",
+      medidoPor: ["Clics innecesarios (Fidgeting)", "Anticipaciones (Fast guesses)"],
+      evidencia: maxEvidence([evUnnecClicks, evFastGuess]),
+    },
     { id: "A2-5", dominio: "Hiperactividad/Impulsividad", label: "\"En marcha\"; como impulsado por un motor",
-      medidoPor: ["CV-RT elevada (indicio)", "Fast guesses"],
-      evidencia: maxEvidence([evCV, scoreToEvidence(g?.fastGuessRate ?? 0, { weak: 0.04, mod: 0.07, strong: 0.12 })]) },
+      medidoPor: ["CV-RT elevada (indicio)", "Fast guesses", "Actividad motora cursor"],
+      evidencia: maxEvidence([evCV, evFastGuess, evFrenetic]) },
     { id: "A2-6", dominio: "Hiperactividad/Impulsividad", label: "Habla en exceso", medidoPor: ["No medido"], evidencia: "sin" },
     { id: "A2-7", dominio: "Hiperactividad/Impulsividad", label: "Responde antes de terminar la pregunta (impulsividad)",
       medidoPor: ["Comisiones (Go/No-Go)", "Fallas de stop (SST)"], evidencia: maxEvidence([evCommission, evStop]) },

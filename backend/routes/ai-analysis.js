@@ -36,7 +36,6 @@ router.post("/predict", requireAuth, async (req, res) => {
                 r.errores_omision,
                 r.rt_promedio_ms,
                 r.rt_p50_ms,
-                r.rt_median_ms,
                 r.rt_p90_ms,
                 r.rt_max_ms,
                 r.rt_sd_ms,
@@ -44,7 +43,7 @@ router.post("/predict", requireAuth, async (req, res) => {
             FROM app.resultados r
             INNER JOIN app.pruebas p ON r.prueba_id = p.id
             WHERE r.alumno_id = $1
-              AND LOWER(p.codigo) IN ('sst', 'stop-signal')
+              AND LOWER(p.codigo) IN ('sst', 'stop-signal', 'stop_signal')
             ORDER BY r.created_at DESC
             LIMIT 1
         `, [studentId]);
@@ -71,10 +70,10 @@ router.post("/predict", requireAuth, async (req, res) => {
             responded_rate: rawDetalles.responded_rate ?? (total > 0 ? Math.max(0, (total - omision) / total) : 0),
             accuracy: rawDetalles.accuracy ?? (total > 0 ? correct / total : 0),
             fail_rate: rawDetalles.fail_rate ?? (total > 0 ? incorrect / total : 0),
-            mean_rt: rawDetalles.mean_rt ?? ((Number(row.rt_promedio_ms) || 0) / 1000),
-            median_rt: rawDetalles.median_rt ?? ((Number(row.rt_p50_ms ?? row.rt_median_ms) || 0) / 1000),
-            p95_rt: rawDetalles.p95_rt ?? ((Number(row.rt_p90_ms ?? row.rt_max_ms) || 0) / 1000),
-            std_rt: rawDetalles.std_rt ?? ((Number(row.rt_sd_ms) || 0) / 1000),
+            mean_rt: rawDetalles.mean_rt ?? rawDetalles.rt_promedio_ms ?? ((Number(row.rt_promedio_ms) || 0) / 1000),
+            median_rt: rawDetalles.median_rt ?? rawDetalles.rt_median_ms ?? rawDetalles.rt_p50_ms ?? ((Number(row.rt_p50_ms) || 0) / 1000),
+            p95_rt: rawDetalles.p95_rt ?? rawDetalles.rt_p90_ms ?? ((Number(row.rt_p90_ms ?? row.rt_max_ms) || 0) / 1000),
+            std_rt: rawDetalles.std_rt ?? rawDetalles.rt_sd_ms ?? ((Number(row.rt_sd_ms) || 0) / 1000),
         };
 
         // 3. Prepare Input

@@ -586,7 +586,7 @@ export default function ResultsPage({ data: propData }: { data?: ResultadosAlumn
       {/* Tendencia */}
       <Card className="xl:col-span-3">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" /> Tendencia de accuracy (ensayo→ensayo, demo)</CardTitle>
+          <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" /> Tendencia estimada de atención sostenida (ensayo→ensayo)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-48">
