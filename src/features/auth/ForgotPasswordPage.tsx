@@ -16,8 +16,8 @@ export default function ForgotPasswordPage() {
     try {
       await requestPasswordReset(email);
       setSent(true);
-    } catch (e: any) {
-      setErr(e?.message ?? "No se pudo procesar la solicitud");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "No se pudo procesar la solicitud");
     } finally {
       setLoading(false);
     }

@@ -15,7 +15,7 @@ export interface CreateUserPayload {
   username?: string;
   password?: string;
   fecha_nacimiento?: string; // YYYY-MM-DD
-  genero?: GeneroDb;         // ⬅️ NUEVO
+  genero?: GeneroDb;
 }
 
 export interface CreateUserResp {
@@ -35,7 +35,7 @@ export async function createUser(payload: CreateUserPayload): Promise<CreateUser
       username: payload.username ?? "",
       password: payload.password ?? "",
       fecha_nacimiento: payload.fecha_nacimiento ?? "",
-      genero: payload.genero ?? "", // ⬅️ NUEVO
+      genero: payload.genero ?? "",
     }),
   });
   const text = await res.text();
@@ -43,14 +43,20 @@ export async function createUser(payload: CreateUserPayload): Promise<CreateUser
   return text ? (JSON.parse(text) as CreateUserResp) : { id: "" };
 }
 
-export async function getUsers(): Promise<Usuario[]> {
-  const res = await fetch(`${API_URL}/users`, {
+export async function getUsers(params?: { role?: string; q?: string }): Promise<Usuario[]> {
+  const url = new URL(`${API_URL}/users`);
+  if (params?.role) url.searchParams.set("role", params.role);
+  if (params?.q) url.searchParams.set("q", params.q);
+
+  const res = await fetch(url.toString(), {
     headers: authHeaders(),
   });
   const txt = await res.text();
   if (!res.ok) throw new Error(txt || "Error cargando usuarios");
   return txt ? (JSON.parse(txt) as Usuario[]) : [];
 }
+
+export const listUsers = getUsers;
 
 export async function updateUser(
   id: string,
@@ -61,18 +67,18 @@ export async function updateUser(
     email?: string | null;
     username?: string | null;
     fecha_nacimiento?: string | null;
-    genero?: GeneroDb | null;           // ⬅️ NUEVO
+    genero?: GeneroDb | null;
     must_change_password?: boolean;
   }
 ) {
-  const body: any = {};
+  const body: Record<string, string | boolean> = {};
   if (payload.nombres !== undefined) body.nombres = payload.nombres;
   if (payload.apellidos !== undefined) body.apellidos = payload.apellidos;
   if (payload.rol !== undefined) body.rol = payload.rol;
   if (payload.email !== undefined) body.email = payload.email ?? "";
   if (payload.username !== undefined) body.username = payload.username ?? "";
   if (payload.fecha_nacimiento !== undefined) body.fecha_nacimiento = payload.fecha_nacimiento ?? "";
-  if (payload.genero !== undefined) body.genero = payload.genero ?? ""; // "" → NULL en back
+  if (payload.genero !== undefined) body.genero = payload.genero ?? "";
   if (payload.must_change_password !== undefined) body.must_change_password = payload.must_change_password;
 
   const res = await fetch(`${API_URL}/users/${id}`, {
@@ -111,4 +117,3 @@ export async function regenerateLoginCode(id: string): Promise<RegenerateCodeRes
   if (!res.ok) throw new Error(text || "Error regenerando código");
   return JSON.parse(text) as RegenerateCodeResp;
 }
-

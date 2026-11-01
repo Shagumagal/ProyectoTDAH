@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // === Datos base (emoji + label accesible) ===
 const ITEMS = [
@@ -37,16 +37,23 @@ interface CaptchaProps {
 }
 
 export default function Captcha({ onVerify }: CaptchaProps) {
-    const [c, setC] = useState(genChallenge());
+    const [c, setC] = useState(genChallenge);
     const [status, setStatus] = useState<null | { ok: boolean; msg: string }>(null);
     const [disabled, setDisabled] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         // reset estado al generar un reto nuevo
         setStatus(null);
         setDisabled(false);
         onVerify(false);
-    }, [c.targetId]);
+    }, [c, onVerify]);
+
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
+    }, []);
 
     function verify(answerId: string) {
         if (disabled) return;
@@ -57,8 +64,10 @@ export default function Captcha({ onVerify }: CaptchaProps) {
             onVerify(true);
         } else {
             setStatus({ ok: false, msg: "Intenta de nuevo" });
+            setDisabled(true);
             // Pequeño delay para que vea el error antes de cambiar
-            setTimeout(() => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => {
                 setC(genChallenge());
             }, 1000);
         }

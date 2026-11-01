@@ -10,7 +10,7 @@ const RENDER_API_URL = "https://proyectotdah.onrender.com";
 // URL del juego en Itch.io
 const ITCH_GAME_URL = "https://shagumagal.itch.io/tdah-ga";
 
-function parseJwt(token: string): any {
+function parseJwt(token: string): Record<string, string | number | undefined> | null {
   try {
     const base64 = token.split(".")[1];
     const json = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));

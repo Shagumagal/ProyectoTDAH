@@ -47,22 +47,12 @@ async function buildTransport() {
   return transportPromise;
 }
 
-/* ============================
-   Envío del mail 2FA
-   ============================ */
-async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
+async function sendMail({ to, subject, text, html }) {
   const toAddress = process.env.FORCE_MAIL_TO || to;
-
-  // IMPORTANTE: para Resend el from debe ser aceptado
   const from =
     process.env.RESEND_FROM ||        // para producción con Resend
     process.env.SMTP_FROM ||          // para SMTP local
     '"Plataforma TDAH" <onboarding@resend.dev>'; // fallback seguro
-
-  const subject = "Tu código de verificación";
-  const text = `Tu código es ${code}. Expira en ${minutes} minutos.`;
-  const html = `<p>Tu código es <b style="font-size:18px;letter-spacing:2px">${code}</b>.</p>
-                <p>Expira en ${minutes} minutos.</p>`;
 
   // 1) PRODUCCIÓN en Render → usamos RESEND (HTTP, no SMTP)
   if (USE_RESEND) {
@@ -84,7 +74,6 @@ async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
     const body = await resp.text();
     if (!resp.ok) {
       console.error("Resend error:", resp.status, body);
-      // No lanzamos para no romper el login
       return;
     }
     console.log("Resend OK:", body);
@@ -109,4 +98,15 @@ async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
   return info;
 }
 
-module.exports = { sendLoginCodeEmail };
+/* ============================
+   Envío del mail 2FA
+   ============================ */
+async function sendLoginCodeEmail({ to, code, minutes = 10 }) {
+  const subject = "Tu código de verificación";
+  const text = `Tu código es ${code}. Expira en ${minutes} minutos.`;
+  const html = `<p>Tu código es <b style="font-size:18px;letter-spacing:2px">${code}</b>.</p>
+                <p>Expira en ${minutes} minutos.</p>`;
+  return sendMail({ to, subject, text, html });
+}
+
+module.exports = { sendLoginCodeEmail, sendMail };

@@ -16,12 +16,11 @@ import {
   regenerateLoginCode,
   type RoleDb,
 } from "../../users/services/users.services";
+import { useNotification } from "../../../context/NotificationContext";
 
 const ROLE_ESTUDIANTE: RoleDb = "estudiante";
 
 type DialogState = { mode: "create" | "edit"; user?: Usuario } | null;
-
-import { useNotification } from "../../../context/NotificationContext";
 
 export default function StudentsPage() {
   const navigate = useNavigate();
@@ -45,8 +44,8 @@ export default function StudentsPage() {
           (u) => (u.rol || "").toLowerCase() === "alumno"
         );
         if (!cancel) setAlumnos(onlyStudents);
-      } catch (e: any) {
-        if (!cancel) setError(e?.message || "Error cargando alumnos");
+      } catch (e: unknown) {
+        if (!cancel) setError(e instanceof Error ? e.message : "Error cargando alumnos");
       } finally {
         if (!cancel) setLoading(false);
       }
@@ -99,7 +98,7 @@ export default function StudentsPage() {
   }) {
     try {
       if (!data.id) {
-        await createUser({
+        const created = await createUser({
           nombres: data.nombres,
           apellidos: data.apellidos,
           rol: ROLE_ESTUDIANTE,
@@ -110,6 +109,13 @@ export default function StudentsPage() {
           genero: data.genero ?? undefined,
         });
         showNotification("Alumno creado con éxito", "success");
+        if (created.login_code) {
+          setCodeData({
+            code: created.login_code,
+            username: data.username || "",
+            expiresInMinutes: 15,
+          });
+        }
       } else {
         await updateUser(data.id, {
           nombres: data.nombres,
@@ -118,14 +124,14 @@ export default function StudentsPage() {
           email: data.email ?? null,
           username: data.username ?? null,
           fecha_nacimiento: data.fecha_nacimiento ?? null,
-          genero: (data.genero ?? null) as any,
+          genero: data.genero ?? null,
         });
         showNotification("Alumno actualizado con éxito", "success");
       }
       await refresh();
       setDialog(null);
-    } catch (e: any) {
-      showNotification(e?.message || "Error al guardar alumno", "error");
+    } catch (e: unknown) {
+      showNotification(e instanceof Error ? e.message : "Error al guardar alumno", "error");
     }
   }
 
@@ -149,8 +155,8 @@ export default function StudentsPage() {
         !isActive ? "success" : "warning"
       );
       setConfirmDialog(null);
-    } catch (e: any) {
-      showNotification(e?.message || "No se pudo cambiar el estado", "error");
+    } catch (e: unknown) {
+      showNotification(e instanceof Error ? e.message : "No se pudo cambiar el estado", "error");
     } finally {
       setConfirmLoading(false);
     }
@@ -165,8 +171,8 @@ export default function StudentsPage() {
         expiresInMinutes: result.expires_in_minutes,
       });
       showNotification("Código generado con éxito", "success");
-    } catch (e: any) {
-      showNotification(e?.message || "Error al generar código", "error");
+    } catch (e: unknown) {
+      showNotification(e instanceof Error ? e.message : "Error al generar código", "error");
     }
   }
 
@@ -181,7 +187,7 @@ export default function StudentsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as any)}
+              onChange={(e) => setFilterStatus(e.target.value as "all" | "Activo" | "Inactivo")}
               className="rounded-xl px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-none outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">Todos los estados</option>
@@ -191,7 +197,7 @@ export default function StudentsPage() {
 
             <select
               value={filterGender}
-              onChange={(e) => setFilterGender(e.target.value as any)}
+              onChange={(e) => setFilterGender(e.target.value as "all" | "masculino" | "femenino")}
               className="rounded-xl px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-none outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">Todos los géneros</option>
@@ -340,7 +346,22 @@ export default function StudentsPage() {
         {dialog && (
           <StudentForm
             mode={dialog.mode}
-            initial={dialog.user as any}
+            initial={
+              dialog.user
+                ? {
+                    id: dialog.user.id,
+                    nombre: dialog.user.nombre,
+                    apellido: dialog.user.apellido,
+                    correo: dialog.user.correo ?? null,
+                    username: dialog.user.username ?? null,
+                    fecha_nacimiento: dialog.user.fecha_nacimiento ?? null,
+                    genero:
+                      dialog.user.genero === "masculino" || dialog.user.genero === "femenino"
+                        ? dialog.user.genero
+                        : null,
+                  }
+                : undefined
+            }
             onCancel={() => setDialog(null)}
             onSubmit={async (form) => {
               await handleSubmit({

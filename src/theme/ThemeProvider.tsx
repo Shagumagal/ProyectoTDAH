@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ThemeProvider as MuiThemeProvider, createTheme, CssBaseline } from "@mui/material";
 
@@ -13,7 +14,9 @@ function getInitialMode(): Mode {
     if (saved === "light" || saved === "dark") return saved;
     const legacy = localStorage.getItem("tdah_dark"); // true/false usado antes
     if (legacy !== null) return legacy === "true" ? "dark" : "light";
-  } catch {}
+  } catch {
+    // ignore storage read error
+  }
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
@@ -28,7 +31,9 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.colorScheme = mode;
     try {
       localStorage.setItem("tdah_theme", mode);
-    } catch {}
+    } catch {
+      // ignore storage write error
+    }
     // color de la barra del navegador móvil
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (meta) meta.content = isDark ? "#0b1220" : "#ffffff";

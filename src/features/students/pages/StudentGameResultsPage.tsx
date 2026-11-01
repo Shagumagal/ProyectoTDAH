@@ -17,7 +17,8 @@ export default function StudentGameResultsPage() {
       if (!t) return "Estudiante";
       const base64 = t.split(".")[1];
       const json = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
-      return JSON.parse(decodeURIComponent(escape(json))).name || "Estudiante";
+      const parsed = JSON.parse(decodeURIComponent(escape(json))) as { name?: string };
+      return parsed.name || "Estudiante";
     } catch { return "Estudiante"; }
   }, []);
 
@@ -28,8 +29,8 @@ export default function StudentGameResultsPage() {
         // Without ID -> fetches current user's results
         const result = await getStudentResults();
         if (!cancelled) setData(result);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || "Error al cargar resultados");
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Error al cargar resultados");
       } finally {
         if (!cancelled) setLoading(false);
       }

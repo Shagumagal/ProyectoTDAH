@@ -64,7 +64,7 @@ router.get("/", async (req, res) => {
       must_change_password: rows[0].must_change_password, // <--- NUEVO
       // devolver como 'YYYY-MM-DD' o null
       fecha_nacimiento: rows[0].fecha_nacimiento
-        ? String(rows[0].fecha_nacimiento) // PG devuelve Date -> a ISO corto
+        ? (rows[0].fecha_nacimiento instanceof Date ? rows[0].fecha_nacimiento.toISOString().slice(0, 10) : String(rows[0].fecha_nacimiento).slice(0, 10))
         : null,
       genero: rows[0].genero || null,
     });
@@ -168,7 +168,7 @@ router.put("/", async (req, res) => {
       nombre_completo: rows[0].nombre,
       email: rows[0].email,
       username: rows[0].username,
-      fecha_nacimiento: rows[0].fecha_nacimiento ? String(rows[0].fecha_nacimiento) : null,
+      fecha_nacimiento: rows[0].fecha_nacimiento ? (rows[0].fecha_nacimiento instanceof Date ? rows[0].fecha_nacimiento.toISOString().slice(0, 10) : String(rows[0].fecha_nacimiento).slice(0, 10)) : null,
       genero: rows[0].genero || null,
     });
   } catch (e) {

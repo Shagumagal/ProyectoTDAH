@@ -10,7 +10,7 @@ export type Gender =
   | null;
 
 export interface MeData {
-  id: number;
+  id: string;
   nombres: string;
   apellidos: string;
   email: string | null;
@@ -19,7 +19,6 @@ export interface MeData {
   activo: boolean;
   /** "YYYY-MM-DD" o null */
   fecha_nacimiento: string | null;
-  /** uno de los permitidos o null */
   /** uno de los permitidos o null */
   genero: Gender;
   must_change_password?: boolean;

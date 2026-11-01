@@ -12,6 +12,17 @@ build/
 .vite/
 coverage/
 
+# Variables de entorno y secretos
+.env
+.env.*
+backend/.env
+postgrest.conf
+
+# Archivos comprimidos y scripts temporales de inspección
+*.zip
+inspect_db.cjs
+inspect_db.js
+backend/*.cjs
 
 # Editores / SO
 .vscode/

@@ -1,4 +1,4 @@
-const { prepareModelInput, predictADHD, ML_CONFIG } = require('../services/adhdPrediction.service');
+const { prepareInputVector, predictADHD, ML_CONFIG } = require('../services/adhdPrediction.service');
 
 console.log("=== Starting Manual Verification of ADHD Prediction Service ===\n");
 
@@ -28,23 +28,23 @@ function assertApprox(actual, expected, tolerance = 0.0001, message) {
 // --- Test Case 1: Age Adjustment ---
 console.log("\n--- Test Case 1: Age Adjustment ---");
 const mockStudentYoung = { fecha_nacimiento: new Date(new Date().getTime() - (1000 * 60 * 60 * 24 * 365.25 * 6)), genero: 'M' }; // 6 years old
-const inputYoung = prepareModelInput({}, mockStudentYoung);
+const inputYoung = prepareInputVector({}, mockStudentYoung);
 assertApprox(inputYoung.Age, 10.0, 0.01, "Age < 9 should be adjusted to 10.0");
 
 const mockStudentOld = { fecha_nacimiento: new Date(new Date().getTime() - (1000 * 60 * 60 * 24 * 365.25 * 12)), genero: 'M' }; // 12 years old
-const inputOld = prepareModelInput({}, mockStudentOld);
+const inputOld = prepareInputVector({}, mockStudentOld);
 assertApprox(inputOld.Age, 12.0, 0.1, "Age > 9 should remain real age");
 
 
 // --- Test Case 2: Gender Coding ---
 console.log("\n--- Test Case 2: Gender Coding ---");
-const inputMale = prepareModelInput({}, { fecha_nacimiento: new Date(), genero: 'Masculino' });
+const inputMale = prepareInputVector({}, { fecha_nacimiento: new Date(), genero: 'Masculino' });
 assert(inputMale.Gender === 1, "Gender 'Masculino' should be 1");
 
-const inputFemale = prepareModelInput({}, { fecha_nacimiento: new Date(), genero: 'Femenino' });
+const inputFemale = prepareInputVector({}, { fecha_nacimiento: new Date(), genero: 'Femenino' });
 assert(inputFemale.Gender === 2, "Gender 'Femenino' should be 2");
 
-const inputFemale2 = prepareModelInput({}, { fecha_nacimiento: new Date(), genero: 'F' });
+const inputFemale2 = prepareInputVector({}, { fecha_nacimiento: new Date(), genero: 'F' });
 assert(inputFemale2.Gender === 2, "Gender 'F' should be 2");
 
 
@@ -62,7 +62,7 @@ const mockDetails = {
     p95_rt: 800,
     std_rt: 100
 };
-const inputProjection = prepareModelInput(mockDetails, { fecha_nacimiento: new Date(), genero: 'M' });
+const inputProjection = prepareInputVector(mockDetails, { fecha_nacimiento: new Date(), genero: 'M' });
 
 const expectedFactor = 160 / 30;
 assertApprox(inputProjection.n_trials, 160, 0.01, "n_trials should be projected to 160");
@@ -76,13 +76,6 @@ assert(inputProjection.runid2 === 1, "runid2 should be 1");
 
 // --- Test Case 4: Prediction Logic (Smoke Test) ---
 console.log("\n--- Test Case 4: Prediction Logic ---");
-// Create an input that is exactly the mean values -> should result in z = intercept
-// scaled = (val - mean) / scale. If val = mean, scaled = 0.
-// z = intercept + sum(0 * coeff) = intercept.
-// prob = 1 / (1 + exp(-intercept))
-// intercept = 0.56245451
-// prob = 1 / (1 + exp(-0.56245451)) = 1 / (1 + 0.5698) = 1 / 1.5698 ~= 0.637
-// threshold = 0.3 -> prediction should be 1 (ADHD)
 
 const meanInput = {
     visit: ML_CONFIG.scalerMeans[0],

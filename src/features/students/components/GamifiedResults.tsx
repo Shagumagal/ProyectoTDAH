@@ -155,10 +155,10 @@ export default function GamifiedResults({ results }: InternalProps) {
     (stats.tol.exists ? 3 : 2)
   );
 
-  // Hyperactivity data — may be null
-  const hyper = results.goNoGo.hyperactivity;
-  const mouseDistanceOk = hyper?.mouseDistance != null && hyper.mouseDistance > 0;
-  const freneticOk = hyper?.freneticMovement != null && hyper.freneticMovement > 0;
+  // Hyperactivity data — viene en tol.hyperactivity o goNoGo.hyperactivity
+  const hyper = results.tol?.hyperactivity ?? results.goNoGo?.hyperactivity;
+  const mouseDistanceOk = hyper?.mouseDistance != null;
+  const freneticOk = hyper?.freneticMovement != null;
   const unnecessaryClicksOk = hyper?.unnecessaryClicks != null;
   const clickRateOk = hyper?.clickRate != null;
 
@@ -256,7 +256,7 @@ export default function GamifiedResults({ results }: InternalProps) {
                 <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                   <MiniBadge label="Frenado" value={`${Math.round((results.stopSignal?.ssrt || 0) * 1000)}ms`} />
                   <MiniBadge label="Fallos Stop" value={`${Math.round((results.stopSignal?.stopFailureRate || 0) * 100)}%`} />
-                  <MiniBadge label="SSD Prom." value={results.stopSignal?.ssdAverage != null ? `${Math.round(results.stopSignal.ssdAverage)}ms` : '—'} />
+                  <MiniBadge label="SSD Prom." value={results.stopSignal?.ssdAverage != null ? `${Math.round(results.stopSignal.ssdAverage * 1000)}ms` : '—'} />
                   <MiniBadge label="Omisiones" value={`${Math.round((results.stopSignal.omissionRate || 0) * 100)}%`} />
                 </div>
               </div>

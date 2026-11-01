@@ -16,7 +16,7 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     if (!token) showNotification("Enlace inválido", "error");
-  }, [token]);
+  }, [token, showNotification]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,8 +29,8 @@ export default function ResetPasswordPage() {
       await resetPassword(token, pwd);
       showNotification("¡Listo! Redirigiendo al inicio de sesión…", "success");
       setTimeout(() => nav(ROUTES.login, { replace: true }), 1200);
-    } catch (e: any) {
-      showNotification(e?.message ?? "No se pudo restablecer la contraseña", "error");
+    } catch (e: unknown) {
+      showNotification(e instanceof Error ? e.message : "No se pudo restablecer la contraseña", "error");
     } finally {
       setLoading(false);
     }
@@ -80,7 +80,7 @@ export default function ResetPasswordPage() {
         <div className="mt-4 text-sm">
           <Link to={ROUTES.login} className="text-indigo-600 hover:underline">Volver al inicio de sesión</Link>
         </div>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }

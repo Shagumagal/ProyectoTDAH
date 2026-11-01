@@ -17,27 +17,38 @@ const FEATURE_COLUMNS = [
     "n_correct", "n_incorrect"
 ];
 
+function normalizeRtSeconds(val) {
+    const num = Number(val) || 0;
+    // Si el tiempo de reacción viene en milisegundos (ej. 450 ms > 10), convertir a segundos
+    return num > 10 ? num / 1000 : num;
+}
+
 /**
  * 2. Lógica de Preparación de Datos (Data Fusion & Projection)
  * @param {object} detalles - Metrics from the game (Unity JSON).
  * @param {object} alumno - Student data (fecha_nacimiento, genero).
  * @returns {object} - Input vector with 16 keys.
  */
-function prepareInputVector(detalles, alumno) {
-    // A. Ajuste de Edad (Anti-Sesgo)
-    const birthDate = new Date(alumno.fecha_nacimiento);
-    const now = new Date();
-    // 365.25 considera años bisiestos para mayor precisión
-    let age = (now.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-    
+function prepareInputVector(detalles = {}, alumno = {}) {
+    // A. Ajuste de Edad (Anti-Sesgo para niños de 6 a 8 años)
+    let age = 7.0; // Valor por defecto para rango 6-8 años si no hay fecha de nacimiento registrada
+    if (alumno && alumno.fecha_nacimiento) {
+        const birthDate = new Date(alumno.fecha_nacimiento);
+        if (!Number.isNaN(birthDate.getTime())) {
+            const now = new Date();
+            // 365.25 considera años bisiestos para mayor precisión
+            age = (now.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+        }
+    }
+
     // Regla: Si edad < 9.0, fuerza el valor a 10.0.
-    if (age < 9.0) {
+    if (age < 9.0 || Number.isNaN(age)) {
         age = 10.0;
     }
 
     // B. Ajuste de Género
     // Codificación: Masculino = 1, Femenino = 2.
-    const g = (alumno.genero || "").toString().toUpperCase();
+    const g = (alumno?.genero || "").toString().toUpperCase();
     let genderCode = 1; // Default Masculino
     if (g === 'F' || g === 'FEMENINO' || g === 'FEMALE' || g === 'MUJER' || g === 'NIÑA') {
         genderCode = 2;
@@ -66,10 +77,10 @@ function prepareInputVector(detalles, alumno) {
         responded_rate: detalles.responded_rate || 0,
         accuracy: detalles.accuracy || 0,
         fail_rate: detalles.fail_rate || 0,
-        mean_rt: detalles.mean_rt || 0,
-        median_rt: detalles.median_rt || 0,
-        p95_rt: detalles.p95_rt || 0,
-        std_rt: detalles.std_rt || 0,
+        mean_rt: normalizeRtSeconds(detalles.mean_rt),
+        median_rt: normalizeRtSeconds(detalles.median_rt),
+        p95_rt: normalizeRtSeconds(detalles.p95_rt),
+        std_rt: normalizeRtSeconds(detalles.std_rt),
         n_correct: nCorrectInput,     // Proyectado
         n_incorrect: nIncorrectInput  // Proyectado
     };
@@ -94,18 +105,18 @@ function predictADHD(inputFeatures) {
     // 2. Standard Scaling & Dot Product
     // z = intercept + SUM(scaled[i] * coefficients[i])
     // scaled[i] = (input[i] - scalerMeans[i]) / scalerScales[i]
-    
+
     let z = ML_CONFIG.intercept;
-    
+
     for (let i = 0; i < featureVector.length; i++) {
         const val = featureVector[i];
         const mean = ML_CONFIG.scalerMeans[i];
         const scale = ML_CONFIG.scalerScales[i];
         const coeff = ML_CONFIG.coefficients[i];
-        
+
         // Evitar división por cero si scale es 0
         const scaledVal = scale !== 0 ? (val - mean) / scale : 0;
-        
+
         z += scaledVal * coeff;
     }
 
@@ -118,6 +129,7 @@ function predictADHD(inputFeatures) {
 
 module.exports = {
     prepareInputVector,
+    prepareModelInput: prepareInputVector,
     predictADHD,
     ML_CONFIG // Exported for testing purposes
 };

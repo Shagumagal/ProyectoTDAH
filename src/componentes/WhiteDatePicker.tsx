@@ -1,13 +1,20 @@
 import * as React from "react";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 
-
-type DPProps = React.ComponentProps<typeof DatePicker<any>>;
+type DPProps = React.ComponentProps<typeof DatePicker>;
 type Props = Omit<DPProps, "slotProps"> & { slotProps?: DPProps["slotProps"] };
 
-const merge = (a?: any, b?: any) => ({ ...(a || {}), ...(b || {}) });
+const merge = (a?: Record<string, unknown>, b?: Record<string, unknown>) => ({
+  ...(a || {}),
+  ...(b || {}),
+});
 
 export default function WhiteDatePicker({ slotProps, ...rest }: Props) {
+  const slotObj = (slotProps || {}) as {
+    textField?: Record<string, unknown>;
+    popper?: Record<string, unknown>;
+  };
+
   const textFieldProps = merge(
     {
       variant: "outlined",
@@ -41,7 +48,7 @@ export default function WhiteDatePicker({ slotProps, ...rest }: Props) {
         "& .MuiFormLabel-root.Mui-focused": { color: "#fff" },
       },
     },
-    (slotProps as any)?.textField
+    slotObj.textField
   );
 
   const popper = merge(
@@ -58,11 +65,11 @@ export default function WhiteDatePicker({ slotProps, ...rest }: Props) {
       },
       disablePortal: false,
     },
-    (slotProps as any)?.popper
+    slotObj.popper
   );
 
   // Asegura formato día/mes/año si el caller no envía uno
-  const defaultedFormat = (rest as any).format ?? "DD/MM/YYYY";
+  const defaultedFormat = rest.format ?? "DD/MM/YYYY";
 
   return (
     <DatePicker

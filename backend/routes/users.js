@@ -49,7 +49,7 @@ router.get("/", async (req, res) => {
 
     if (myRole === "admin") {
       // sin restricciones
-    } else if (myRole === "profesor") {
+    } else if (myRole === "profesor" || myRole === "psicologo") {
       if (!roleQ) roleQ = "estudiante";
       if (roleQ !== "estudiante") return res.status(403).json({ error: "FORBIDDEN" });
     } else {
@@ -94,7 +94,7 @@ router.get("/", async (req, res) => {
         username: x.username || undefined,
         rol: ROL_UI[x.rol_db] || "Alumno",
         estado: x.activo ? "Activo" : "Inactivo",
-        fecha_nacimiento: x.fecha_nacimiento || null,
+        fecha_nacimiento: x.fecha_nacimiento instanceof Date ? x.fecha_nacimiento.toISOString().slice(0, 10) : (x.fecha_nacimiento ? String(x.fecha_nacimiento).slice(0, 10) : null),
         genero: x.genero || null,
         created_at: x.created_at || null,
       };
@@ -322,7 +322,7 @@ router.put("/:id", requireRole("admin", "profesor"), async (req, res) => {
         Object.prototype.hasOwnProperty.call(req.body, "apellidos");
 
       if (tocoNombre) {
-        const fullName = norm(`${nombres} ${apellidos}`);
+        const fullName = norm(`${nombres ?? ""} ${apellidos ?? ""}`);
         if (!fullName) {
           await client.query("ROLLBACK");
           return res.status(400).json({ error: "El nombre no puede ser vacío" });

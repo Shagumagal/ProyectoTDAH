@@ -7,11 +7,18 @@ import ConfirmLogoutDialog from "../../features/auth/components/ConfirmLogoutDia
 
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
-function parseJwt(token: string): any {
+interface JwtPayload {
+  sub?: string;
+  role?: string;
+  exp?: number;
+}
+
+function parseJwt(token: string): JwtPayload | null {
   try {
     const base64 = token.split(".")[1];
+    if (!base64) return null;
     const json = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(decodeURIComponent(escape(json)));
+    return JSON.parse(decodeURIComponent(escape(json))) as JwtPayload;
   } catch {
     return null;
   }
@@ -27,8 +34,8 @@ function getRoleFromToken(): Role | null {
 const ALLOWED_ROUTES: Record<Role, string[]> = {
   admin:     [ROUTES.usuarios, ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
   profesor:  [ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
-  psicologo: [ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultados, ROUTES.analisisIA],
-  estudiante:[ROUTES.videojuego,               ROUTES.perfil,  ROUTES.resultadosJuego],
+  psicologo: [ROUTES.videojuego, ROUTES.alumnos, ROUTES.perfil, ROUTES.resultados, ROUTES.analisisIA],
+  estudiante:[ROUTES.videojuego,                 ROUTES.perfil, ROUTES.resultadosJuego],
 };
 
 function DarkModeToggle() {
@@ -155,12 +162,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   const role = getRoleFromToken();
-  const allowed = role ? ALLOWED_ROUTES[role] : [];
 
   const navItems = useMemo(() => {
-    if (role === "admin") return baseNav;
+    const allowed = role ? ALLOWED_ROUTES[role] : [];
+    if (role === "admin") return baseNav.filter((i) => allowed.includes(i.to));
     return baseNav.filter((i) => allowed.includes(i.to));
-  }, [role, allowed, baseNav]);
+  }, [role, baseNav]);
 
   const linkBase =
     "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400";

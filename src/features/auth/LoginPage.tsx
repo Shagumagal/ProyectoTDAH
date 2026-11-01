@@ -27,16 +27,16 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      // loginPassword ahora devuelve { twofa: true|false }
       const r = await loginPassword(identifier.trim(), password);
       if (r.twofa) {
-        // guardado de pending2fa ya lo hace el service
         nav(ROUTES.authCode);
+      } else if (r.user?.must_change) {
+        nav(ROUTES.perfil);
       } else {
-        nav(ROUTES.usuarios);
+        nav(ROUTES.app);
       }
-    } catch (err: any) {
-      setError(err?.message || "Error de inicio de sesión");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error de inicio de sesión");
     } finally {
       setLoading(false);
     }
@@ -48,11 +48,14 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      // loginWithCode devuelve { ok: true } si todo va bien y guarda el token
-      await loginWithCode(username.trim(), code.trim());
-      nav(ROUTES.usuarios);
-    } catch (err: any) {
-      setError(err?.message || "Código inválido o expirado");
+      const r = await loginWithCode(username.trim(), code.trim());
+      if (r.user?.must_change) {
+        nav(ROUTES.perfil);
+      } else {
+        nav(ROUTES.app);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Código inválido o expirado");
     } finally {
       setLoading(false);
     }

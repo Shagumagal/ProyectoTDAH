@@ -36,8 +36,6 @@ export default function ProfilePage() {
     genero: null as Gender,
   });
 
-  // Mensajes perfil (REMOVED)
-
   // ---- Cambio de contraseña ----
   const [curPwd, setCurPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
@@ -57,8 +55,8 @@ export default function ProfilePage() {
     (async () => {
       try {
         const me = await getMe();
-        // Parseo seguro de fecha
-        const d = me.fecha_nacimiento ? dayjs(me.fecha_nacimiento) : null;
+        // Parseo seguro de fecha (YYYY-MM-DD)
+        const d = me.fecha_nacimiento ? dayjs(String(me.fecha_nacimiento).slice(0, 10)) : null;
         const g: Gender =
           me.genero && ["masculino", "femenino"].includes(String(me.genero))
             ? (me.genero as Gender) : null;
@@ -79,13 +77,13 @@ export default function ProfilePage() {
           fecha_nacimiento: d && d.isValid() ? d.format("YYYY-MM-DD") : null,
           genero: g,
         });
-      } catch (e: any) {
-        showNotification(e?.message || "No se pudo cargar el perfil", "error");
+      } catch (e: unknown) {
+        showNotification(e instanceof Error ? e.message : "No se pudo cargar el perfil", "error");
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [showNotification]);
 
   const dobStr = dob && dob.isValid() ? dob.format("YYYY-MM-DD") : null;
 
@@ -115,8 +113,8 @@ export default function ProfilePage() {
         apellidos,
         email: email || null,
         username: username || null,
-        fecha_nacimiento: dobStr,     // ← enviamos string YYYY-MM-DD o null
-        genero: genero ?? null,       // ← enviamos string o null
+        fecha_nacimiento: dobStr,
+        genero: genero ?? null,
       });
       showNotification("Perfil actualizado", "success");
 
@@ -125,8 +123,8 @@ export default function ProfilePage() {
         fecha_nacimiento: dobStr, genero,
       });
       setConfirmSaveOpen(false);
-    } catch (e: any) {
-      showNotification(e?.message || "No se pudo actualizar", "error");
+    } catch (e: unknown) {
+      showNotification(e instanceof Error ? e.message : "No se pudo actualizar", "error");
     } finally {
       setSavingProfile(false);
     }
@@ -157,9 +155,10 @@ export default function ProfilePage() {
       await changeMyPassword(curPwd, newPwd);
       showNotification("Contraseña actualizada", "success");
       setCurPwd(""); setNewPwd(""); setNewPwd2("");
+      setMustChangePwd(false);
       setConfirmPassOpen(false);
-    } catch (e: any) {
-      let msg = e?.message || "No se pudo cambiar la contraseña";
+    } catch (e: unknown) {
+      let msg = e instanceof Error ? e.message : "No se pudo cambiar la contraseña";
       if (msg.includes("BAD_CURRENT_PASSWORD")) {
         msg = "La contraseña actual no es correcta.";
       } else if (msg.includes("WEAK_PASSWORD")) {
@@ -247,8 +246,6 @@ export default function ProfilePage() {
               ))}
             </select>
           </label>
-
-          {/* Mensajes eliminados */}
 
           <div className="mt-1">
             <button

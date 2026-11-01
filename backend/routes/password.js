@@ -1,26 +1,18 @@
 const express = require("express");
 const crypto = require("crypto");
 const { pool } = require("../db");
-const { requireAuth } = require("../middlewares/auth"); // (no lo usamos aquí, son rutas públicas)
-const nodemailer = require("nodemailer");
+const { sendMail } = require("../mailer");
 
 const router = express.Router();
 
 // Util: enviar email o loguear en dev
 async function sendResetEmail(to, url) {
-  // Si tienes SMTP en env, úsalo; si no, log por consola
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT),
-      secure: Number(SMTP_PORT) === 465,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-    });
-    await transporter.sendMail({
-      from: `"Soporte TDAH" <${SMTP_USER}>`,
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, RESEND_API_KEY } = process.env;
+  if ((SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) || RESEND_API_KEY) {
+    await sendMail({
       to,
       subject: "Recuperación de contraseña",
+      text: `Solicitaste restablecer tu contraseña. Continúa en: ${url}`,
       html: `<p>Solicitaste restablecer tu contraseña.</p>
              <p><a href="${url}">Haz clic aquí para continuar</a></p>
              <p>Si no fuiste tú, ignora este correo.</p>`,
@@ -118,5 +110,3 @@ router.post("/reset-password", async (req, res) => {
 });
 
 module.exports = router;
-
-

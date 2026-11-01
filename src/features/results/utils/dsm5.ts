@@ -42,16 +42,15 @@ export type Criterio = {
 
 export function inferDSM5(r: ResultadosAlumno): Criterio[] {
   const g = r.goNoGo, s = r.stopSignal, tl = r.tol;
-  // const st = r.stroop;
 
   const evCommission = scoreToEvidence(((g?.commissionRate ?? 0) + (s?.commissionRate ?? 0)) / 2, RULES.commission);
   const evOmission   = scoreToEvidence(((g?.omissionRate   ?? 0) + (s?.omissionRate   ?? 0)) / 2, RULES.omission);
   const evCV         = scoreToEvidence(Math.max(g?.cvRT ?? 0, s?.cvRT ?? 0), RULES.cvRT);
   const evVig        = scoreToEvidence(g?.vigilanceDecrement ?? 0, RULES.vigDec);
   const evStop       = scoreToEvidence(s?.stopFailureRate ?? 0, RULES.stopFail);
-  // const evStroop     = st ? scoreToEvidence(st.deltaInterference, RULES.stroopDelta) : "sin";
   const evOrg: Evidence = tl
-    ? (tl.excessMoves >= RULES.tolMoves.strong || tl.planLatency >= RULES.planLatency.strong) ? "fuerte"
+    ? tl.excessMoves === 0 ? "sin"
+    : (tl.excessMoves >= RULES.tolMoves.strong || tl.planLatency >= RULES.planLatency.strong) ? "fuerte"
     : (tl.excessMoves >= RULES.tolMoves.mod    || tl.planLatency >= RULES.planLatency.mod)    ? "moderada"
     : (tl.excessMoves >= RULES.tolMoves.weak   || tl.planLatency >= RULES.planLatency.weak)   ? "debil"
     : "sin"

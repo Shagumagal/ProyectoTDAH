@@ -5,6 +5,7 @@ import Modal from "../../../componentes/Modal";
 import UserForm, { type UserFormOutput } from "../components/UserForm";
 import SearchInput from "../../../componentes/SearchInput";
 import ConfirmDialog from "../../../componentes/ConfirmDialog";
+import CodeModal from "../../students/components/CodeModal";
 import {
   getUsers,
   createUser,
@@ -12,6 +13,7 @@ import {
   setUserActive,
   type RoleDb,
 } from "../services/users.services";
+import { useNotification } from "../../../context/NotificationContext";
 
 type DialogState = { mode: "create" | "edit"; user?: Usuario } | null;
 
@@ -22,8 +24,6 @@ const ROL_DB_MAP: Record<RolUI, RoleDb> = {
   Admin: "admin",
 };
 
-import { useNotification } from "../../../context/NotificationContext";
-
 export default function UsersPage() {
   const { showNotification } = useNotification();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -33,6 +33,7 @@ export default function UsersPage() {
   const [q, setQ] = useState("");
   const [confirmDialog, setConfirmDialog] = useState<{ userId: string; isActive: boolean } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [codeData, setCodeData] = useState<{ code: string; username: string; expiresInMinutes: number } | null>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -41,9 +42,9 @@ export default function UsersPage() {
         setLoading(true);
         const data = await getUsers();
         if (!cancel) setUsuarios(data);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error(e);
-        if (!cancel) setError(e?.message || "Error cargando usuarios");
+        if (!cancel) setError(e instanceof Error ? e.message : "Error cargando usuarios");
       } finally {
         if (!cancel) setLoading(false);
       }
@@ -56,7 +57,7 @@ export default function UsersPage() {
     setUsuarios(data);
   }
 
-  // 🔎 Filtrado local por búsqueda
+  // Filtrado local por búsqueda
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return usuarios;
@@ -76,26 +77,33 @@ export default function UsersPage() {
   async function handleSubmit(data: UserFormOutput) {
     try {
       if (!data.id) {
-        await createUser({
+        const created = await createUser({
           nombres: data.nombre,
           apellidos: data.apellido,
-          rol: ROL_DB_MAP[data.rol], // UI -> DB
+          rol: ROL_DB_MAP[data.rol],
           email: data.correo,
           username: data.username,
           password: data.password ?? undefined,
           fecha_nacimiento: data.fecha_nacimiento ?? undefined,
-          genero: data.genero ?? undefined, // ⬅️ NUEVO
+          genero: data.genero ?? undefined,
         });
         await refresh();
         setDialog(null);
         showNotification("Usuario creado con éxito", "success");
+        if (created.login_code) {
+          setCodeData({
+            code: created.login_code,
+            username: data.username || "",
+            expiresInMinutes: 15,
+          });
+        }
         return;
       }
 
       await updateUser(data.id, {
         nombres: data.nombre,
         apellidos: data.apellido,
-        rol: ROL_DB_MAP[data.rol], // UI -> DB
+        rol: ROL_DB_MAP[data.rol],
         email: data.correo ?? null,
         username: data.username ?? null,
         fecha_nacimiento: data.fecha_nacimiento ?? null,
@@ -105,8 +113,8 @@ export default function UsersPage() {
       await refresh();
       setDialog(null);
       showNotification("Usuario actualizado con éxito", "success");
-    } catch (e: any) {
-      showNotification(e?.message || "Error al guardar usuario", "error");
+    } catch (e: unknown) {
+      showNotification(e instanceof Error ? e.message : "Error al guardar usuario", "error");
     }
   }
 
@@ -130,8 +138,8 @@ export default function UsersPage() {
         !isActive ? "success" : "warning"
       );
       setConfirmDialog(null);
-    } catch (e: any) {
-      showNotification(e?.message || "No se pudo cambiar el estado", "error");
+    } catch (e: unknown) {
+      showNotification(e instanceof Error ? e.message : "No se pudo cambiar el estado", "error");
     } finally {
       setConfirmLoading(false);
     }
@@ -158,9 +166,6 @@ export default function UsersPage() {
                 className="flex-1 sm:flex-none whitespace-nowrap rounded-xl px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold shadow-lg shadow-indigo-600/20"
               >
                 Nuevo usuario
-              </button>
-              <button className="flex-1 sm:flex-none whitespace-nowrap rounded-xl px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-200 dark:hover:bg-slate-700">
-                Importar CSV
               </button>
             </div>
           </div>
@@ -336,6 +341,14 @@ export default function UsersPage() {
         loading={confirmLoading}
         onClose={() => setConfirmDialog(null)}
         onConfirm={handleConfirmToggle}
+      />
+
+      <CodeModal
+        open={!!codeData}
+        onClose={() => setCodeData(null)}
+        code={codeData?.code || ""}
+        username={codeData?.username || ""}
+        expiresInMinutes={codeData?.expiresInMinutes || 15}
       />
     </section>
   );

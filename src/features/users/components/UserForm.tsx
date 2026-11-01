@@ -36,7 +36,7 @@ function isAtLeast5Years(d: Dayjs | null) {
   if (!d || !d.isValid()) return false;
   const cut = dayjs().subtract(5, "year").endOf("day");
   const min = dayjs("1900-01-01");
-  return d.isBefore(cut) && d.isAfter(min.subtract(1, "day"));
+  return (d.isSame(cut) || d.isBefore(cut)) && d.isAfter(min.subtract(1, "day"));
 }
 
 const fmt = (d: Dayjs | null) => (d && d.isValid() ? d.format("YYYY-MM-DD") : "");
@@ -95,17 +95,21 @@ export default function UserForm({
     if (mode === "edit" && initialUser) {
       setNombre(initialUser.nombre ?? "");
       setApellido(initialUser.apellido ?? "");
-      setRol((initialUser.rol as any) || "Alumno");
+      setRol(initialUser.rol || "Alumno");
       setCorreo(initialUser.correo ?? "");
-      setUsername((initialUser as any).username ?? "");
+      setUsername(initialUser.username ?? "");
       setPassword("");
 
       const d = initialUser.fecha_nacimiento
-        ? dayjs(initialUser.fecha_nacimiento)
+        ? dayjs(String(initialUser.fecha_nacimiento).slice(0, 10))
         : null;
       setFechaNac(d && d.isValid() ? d : null);
 
-      setGenero((initialUser as any).genero ?? null);
+      setGenero(
+        initialUser.genero === "masculino" || initialUser.genero === "femenino"
+          ? initialUser.genero
+          : null
+      );
     } else {
       setNombre("");
       setApellido("");
@@ -315,8 +319,8 @@ export default function UserForm({
     try {
       setSaving(true);
       await onSubmit(payload);
-    } catch (e: any) {
-      setGlobalError(e?.message || "Error al guardar.");
+    } catch (e: unknown) {
+      setGlobalError(e instanceof Error ? e.message : "Error al guardar.");
     } finally {
       setSaving(false);
     }
@@ -481,7 +485,7 @@ export default function UserForm({
               </button>
             </div>
             <ValidatedInput
-              label="" // Label handled above for custom layout
+              label=""
               type={showPass ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -490,7 +494,7 @@ export default function UserForm({
               touched={touched.password}
               placeholder="Mín. 6 caracteres"
               autoComplete="new-password"
-              showValidIcon={false} // Custom layout makes icon tricky, simplifying
+              showValidIcon={false}
             />
           </div>
         )}

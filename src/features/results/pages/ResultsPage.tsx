@@ -2,12 +2,23 @@ import * as React from "react";
 import { useParams } from "react-router-dom";
 import {
   Brain, Activity, TrendingUp, AlertTriangle, CircleCheck, CircleX, Info, Download,
+  MousePointer2, Zap, Activity as ActivityIcon,
 } from "lucide-react";
 import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   LineChart, Line, XAxis, YAxis, Tooltip as RTooltip,
 } from "recharts";
 import { generatePDF } from "../utils/pdfGenerator";
+import { listUsers } from "../../users/services/users.services";
+import type { Usuario } from "../../../lib/types";
+import type {
+  ResultadosAlumno,
+  Evidence,
+  TowerOfLondonMetrics,
+  HyperactivityMetrics,
+} from "../types";
+import { inferDSM5, RULES } from "../utils/dsm5";
+import { getStudentResults } from "../services/results.service";
 
 /* =========================
    UI STUBS (sin shadcn/ui)
@@ -88,12 +99,6 @@ export const Tooltip: React.FC<{ children?: React.ReactNode }> = ({ children }) 
 export const TooltipTrigger: React.FC<{ asChild?: boolean; children?: React.ReactNode }> = ({ children }) => <>{children}</>;
 export const TooltipContent: React.FC<{ className?: string; children?: React.ReactNode }> = ({ children }) => <>{children}</>;
 
-import type {
-  ResultadosAlumno,
-  Evidence,
-  TowerOfLondonMetrics
-} from "../types";
-
 /* =========================
    Datos DEMO
    ========================= */
@@ -110,11 +115,8 @@ const DEMO: ResultadosAlumno = {
     medianRT: 0.45, p95RT: 0.88, cvRT: 0.26,
     stopFailureRate: 0.46, ssrt: 0.26,
   },
-  // stroop: { deltaInterference: 0.21, accuracy: 0.86 },
   tol: { planLatency: 3.4, excessMoves: 2, ruleViolations: 0 },
 };
-
-import { inferDSM5, RULES } from "../utils/dsm5";
 
 /* =========================
    Utilidades UI
@@ -154,10 +156,6 @@ function clamp01(v: number) { return Math.max(0, Math.min(1, v)); }
 /* =========================
    Riesgo y helpers
    ========================= */
-import type { HyperactivityMetrics } from "../types";
-
-
-
 function riskFromTriad(a: number, b: number, c: number) {
   const m = (a + b + c) / 3;
   if (m >= 0.4) return "alto" as const;
@@ -188,14 +186,11 @@ function evTo(tl: TowerOfLondonMetrics): Evidence {
 /* =========================
    Componente Tarjeta Hiperactividad
    ========================= */
-import { MousePointer2, Zap, Activity as ActivityIcon } from "lucide-react";
-
 const HyperactivityCard = ({ data }: { data?: HyperactivityMetrics }) => {
   if (!data) return null;
 
-  // Normalizar valores para barras de progreso (ejemplos)
   const freneticPct = Math.min(100, (data.freneticMovement || 0) * 100);
-  const clickLevel = Math.min(100, ((data.unnecessaryClicks || 0) / 20) * 100); // Asumiendo 20 clics basura es "alto"
+  const clickLevel = Math.min(100, ((data.unnecessaryClicks || 0) / 20) * 100);
 
   return (
     <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
@@ -258,47 +253,73 @@ const HyperactivityCard = ({ data }: { data?: HyperactivityMetrics }) => {
 /* =========================
    Componente principal
    ========================= */
-import { getStudentResults } from "../services/results.service";
-
 export default function ResultsPage({ data: propData }: { data?: ResultadosAlumno }) {
   const { id } = useParams();
+  const [students, setStudents] = React.useState<Usuario[]>([]);
+  const [selectedId, setSelectedId] = React.useState<string>(id || "");
   const [apiData, setApiData] = React.useState<ResultadosAlumno | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (id) setSelectedId(id);
+  }, [id]);
 
+  React.useEffect(() => {
+    if (propData) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await listUsers({ role: "estudiante" });
+        if (cancelled) return;
+        setStudents(rows);
+        if (!id && !selectedId && rows.length > 0) {
+          setSelectedId(String(rows[0].id));
+        }
+      } catch {
+        // ignore if student list is not accessible
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, propData, selectedId]);
 
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    // If propData is provided, use it (e.g. for preview)
     if (propData) {
       setApiData(propData);
       setLoading(false);
       return;
     }
 
+    const targetId = selectedId || id;
+    if (!targetId) {
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
-        // Fetch results for the given ID (admin/profesor view) or current user (student view)
-        const data = await getStudentResults(id);
+        const data = await getStudentResults(targetId);
         if (!cancelled) setApiData(data);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.warn("Resultados API:", e);
-        if (!cancelled) setError(e.message || "Error al cargar resultados");
+        if (!cancelled) setError(e instanceof Error ? e.message : "Error al cargar resultados");
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [id, propData]);
+  }, [id, selectedId, propData]);
 
   if (loading) return <div className="p-8 text-center text-muted-foreground">Cargando resultados...</div>;
   if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
 
-  const data = apiData ?? DEMO; // Fallback to DEMO only if absolutely necessary, but prefer showing error or empty state if real data is expected.
+  const data = apiData ?? DEMO;
 
   const criterios = inferDSM5(data);
   const radarData = [
@@ -309,7 +330,7 @@ export default function ResultsPage({ data: propData }: { data?: ResultadosAlumn
   ];
   const trendData = Array.from({ length: 12 }).map((_, i) => ({
     t: i + 1,
-    acc: clamp01(data.goNoGo.accuracy + (i - 5) * -0.01 + (Math.random() - 0.5) * 0.02),
+    acc: clamp01(data.goNoGo.accuracy + (i - 5) * -0.008 * (data.goNoGo.vigilanceDecrement ?? 0.5)),
   }));
   const a1 = criterios.filter(c => c.id.startsWith("A1-"));
   const a2 = criterios.filter(c => c.id.startsWith("A2-"));
@@ -331,14 +352,25 @@ export default function ResultsPage({ data: propData }: { data?: ResultadosAlumn
              </div>
              <div>
                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Estudiante</p>
-               <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{data.alumno.nombre || "Alumno Test"}</p>
+               {!propData && students.length > 0 ? (
+                 <select
+                   value={selectedId}
+                   onChange={(e) => setSelectedId(e.target.value)}
+                   className="mt-0.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                 >
+                   {students.map((s) => (
+                     <option key={String(s.id)} value={String(s.id)}>
+                       {s.nombre} {s.apellido}
+                     </option>
+                   ))}
+                 </select>
+               ) : (
+                 <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{data.alumno.nombre || "Alumno Test"}</p>
+               )}
              </div>
           </div>
         </div>
       </div>
-
-      {/* --- SECCIÓN GAMIFICADA (SOLO ESTUDIANTES) --- */}
-
 
       {/* Izquierda: Radar + Resumen */}
       <Card className="xl:col-span-1">
@@ -470,7 +502,6 @@ export default function ResultsPage({ data: propData }: { data?: ResultadosAlumn
                  </div>
               </div>
               
-              {/* NUEVO: Solo aquí mostramos la tarjeta de hiperactividad */}
               {data.tol.hyperactivity && (
                  <HyperactivityCard data={data.tol.hyperactivity} />
               )}
@@ -542,7 +573,6 @@ export default function ResultsPage({ data: propData }: { data?: ResultadosAlumn
         </CardContent>
         <CardFooter className="flex items-center justify-between">
           <div className="text-xs text-muted-foreground">DSM-5-TR: Códigos A1/A2 (uso orientativo)</div>
-
 
           <button 
             onClick={() => generatePDF(data)}

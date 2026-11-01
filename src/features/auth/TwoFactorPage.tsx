@@ -3,6 +3,12 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { verify2FA, resend2FA } from "./services/auth.services";
 
+interface Pending2FAState {
+  user_id?: string;
+  email?: string;
+  expires_in?: number;
+}
+
 /**
  * TwoFactorPage
  * - Vista para ingresar un código 2FA de 6 dígitos
@@ -13,21 +19,43 @@ import { verify2FA, resend2FA } from "./services/auth.services";
  */
 export default function TwoFactorPage() {
   const navigate = useNavigate();
-  const location = useLocation() as any;
+  const location = useLocation();
 
   // Preferir state, si no hay usar sessionStorage.
-  const pending = useMemo(() => {
-    const fromState = location?.state?.pending2fa;
+  const pending = useMemo<Pending2FAState | null>(() => {
+    const stateObj = location.state as { pending2fa?: Pending2FAState } | null;
+    const fromState = stateObj?.pending2fa;
     if (fromState?.user_id) return fromState;
     try {
       const raw = sessionStorage.getItem("pending2fa");
-      if (raw) return JSON.parse(raw);
-    } catch {}
+      if (raw) return JSON.parse(raw) as Pending2FAState;
+    } catch {
+      // ignore invalid JSON
+    }
     return null;
-  }, [location?.state]);
+  }, [location.state]);
 
-  const userId: number | null = pending?.user_id ?? null;
+  const userId: string | null = pending?.user_id ? String(pending.user_id) : null;
   const email: string | null = pending?.email ?? null;
+
+  // ======= Estado de PIN y enfoque =======
+  const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ======= Reenvío (cooldown) =======
+  const INITIAL_SECONDS = 60;
+  const [seconds, setSeconds] = useState(INITIAL_SECONDS);
+  const [resending, setResending] = useState(false);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const maskedEmail = useMemo(() => (email ? maskEmail(email) : ""), [email]);
 
   // Si no hay contexto, invitar a loguearse de nuevo
   if (!userId) {
@@ -46,24 +74,6 @@ export default function TwoFactorPage() {
       </div>
     );
   }
-
-  // ======= Estado de PIN y enfoque =======
-  const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
-  const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // ======= Reenvío (cooldown) =======
-  const INITIAL_SECONDS = 60;
-  const [seconds, setSeconds] = useState(INITIAL_SECONDS);
-  const [resending, setResending] = useState(false);
-
-  useEffect(() => {
-    const id = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const maskedEmail = useMemo(() => (email ? maskEmail(email) : ""), [email]);
 
   function onChangeDigit(idx: number, v: string) {
     setError(null);
@@ -119,9 +129,9 @@ export default function TwoFactorPage() {
     setError(null);
     try {
       await verify2FA(code); // guarda token y limpia pending2fa
-      navigate("/app/usuarios", { replace: true });
-    } catch (e: any) {
-      setError(e.message || "No se pudo verificar el código");
+      navigate("/app", { replace: true });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "No se pudo verificar el código");
       // Resaltar inputs si falla
       shakeRow();
     } finally {
@@ -136,15 +146,13 @@ export default function TwoFactorPage() {
     try {
       await resend2FA();
       setSeconds(INITIAL_SECONDS);
-    } catch (e: any) {
-      setError(e.message || "No se pudo reenviar el código");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "No se pudo reenviar el código");
     } finally {
       setResending(false);
     }
   }
 
-  // Efecto "shake" sutil en error
-  const rowRef = useRef<HTMLDivElement | null>(null);
   function shakeRow() {
     const el = rowRef.current;
     if (!el) return;

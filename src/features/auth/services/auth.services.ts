@@ -34,7 +34,7 @@ function getPending2FA(): { user_id: string; email?: string; expires_in?: number
   const s = sessionStorage.getItem("pending2fa");
   if (!s) return null;
   try {
-    return JSON.parse(s);
+    return JSON.parse(s) as { user_id: string; email?: string; expires_in?: number };
   } catch {
     return null;
   }
@@ -42,27 +42,38 @@ function getPending2FA(): { user_id: string; email?: string; expires_in?: number
 export function logout() {
   localStorage.removeItem("auth_token");
   sessionStorage.removeItem("pending2fa");
+  sessionStorage.removeItem("captcha_solved");
 }
 
 /* ===================== Type guards para evitar TS2339 ===================== */
 function hasStatus(x: unknown): x is { status: string } {
-  return typeof x === "object" && x !== null && "status" in (x as any);
+  return (
+    typeof x === "object" &&
+    x !== null &&
+    "status" in x &&
+    typeof (x as Record<string, unknown>).status === "string"
+  );
 }
 function isOk(x: unknown): x is ApiOk {
-  return hasStatus(x) && (x as any).status === "OK";
+  return hasStatus(x) && x.status === "OK";
 }
 function is2FA(x: unknown): x is Api2FA {
-  return hasStatus(x) && (x as any).status === "2FA_REQUIRED";
+  return hasStatus(x) && x.status === "2FA_REQUIRED";
 }
-function parseJSON<T = unknown>(txt: string): T | unknown {
+function parseJSON<T = unknown>(txt: string): T | Record<string, unknown> {
   try {
     return JSON.parse(txt) as T;
   } catch {
     return {};
   }
 }
-function extractError(data: any, fallback: string, res: Response) {
-  return new Error(data?.error || data?.message || fallback || `HTTP ${res.status}`);
+function extractError(data: unknown, fallback: string, res: Response) {
+  if (typeof data === "object" && data !== null) {
+    const obj = data as Record<string, unknown>;
+    const msg = obj.error || obj.message;
+    if (typeof msg === "string" && msg) return new Error(msg);
+  }
+  return new Error(fallback || `HTTP ${res.status}`);
 }
 
 /* ===================== Servicios ===================== */
@@ -76,7 +87,7 @@ export async function loginPassword(identifier: string, password: string) {
   });
 
   const txt = await res.text();
-  const data: LoginPasswordResp | unknown = parseJSON<LoginPasswordResp>(txt);
+  const data = parseJSON<LoginPasswordResp>(txt);
 
   if (!res.ok) throw extractError(data, txt, res);
 
@@ -92,7 +103,7 @@ export async function loginPassword(identifier: string, password: string) {
   if (isOk(data)) {
     saveToken(data.token);
     sessionStorage.removeItem("pending2fa");
-    return { twofa: false as const };
+    return { twofa: false as const, user: data.user };
   }
 
   throw new Error("Respuesta inesperada del servidor");
@@ -107,14 +118,14 @@ export async function loginWithCode(username: string, code: string) {
   });
 
   const txt = await res.text();
-  const data: LoginCodeResp | unknown = parseJSON<LoginCodeResp>(txt);
+  const data = parseJSON<LoginCodeResp>(txt);
 
   if (!res.ok) throw extractError(data, txt, res);
 
   if (isOk(data)) {
     saveToken(data.token);
     sessionStorage.removeItem("pending2fa");
-    return { ok: true as const };
+    return { ok: true as const, user: data.user };
   }
 
   throw new Error("Código inválido o expirado");
@@ -132,7 +143,7 @@ export async function verify2FA(code6: string) {
   });
 
   const txt = await res.text();
-  const data: Verify2FAResp | unknown = parseJSON<Verify2FAResp>(txt);
+  const data = parseJSON<Verify2FAResp>(txt);
 
   if (!res.ok) throw extractError(data, txt, res);
 
@@ -157,7 +168,7 @@ export async function resend2FA() {
   });
 
   const txt = await res.text();
-  const data: any = parseJSON(txt);
+  const data = parseJSON(txt);
 
   if (!res.ok) throw extractError(data, txt, res);
   return data;

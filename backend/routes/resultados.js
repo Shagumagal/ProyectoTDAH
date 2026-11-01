@@ -230,9 +230,9 @@ router.get('/alumno/:id', async (req, res) => {
     // 1. Buscar la ÚLTIMA partida de cada tipo de juego para este alumno
     // Usamos DISTINCT ON para obtener la mas reciente por tipo de prueba
     const sql = `
-      SELECT DISTINCT ON (p.codigo) r.*, p.codigo as prueba_codigo
+      SELECT DISTINCT ON (p.codigo) r.*, p.codigo as prueba_codigo, to_jsonb(mh) as hyperactivity
       FROM app.resultados r
-      JOIN app.pruebas p ON r.prueba_id = p.id
+      JOIN app.pruebas p ON r.prueba_id = p.id LEFT JOIN app.metricas_hiperactividad mh ON mh.resultado_id = r.id
       WHERE r.alumno_id = $1
       ORDER BY p.codigo, r.started_at DESC;
     `;
@@ -280,8 +280,8 @@ router.get('/alumno/:id', async (req, res) => {
           medianRT: (row.rt_p50_ms || row.rt_median_ms || 0) / 1000,
           cvRT: row.rt_promedio_ms > 0 ? (row.rt_sd_ms / row.rt_promedio_ms) : 0,
           stopFailureRate: row.total_estimulos > 0 ? (row.errores_comision / row.total_estimulos) : 0, // En SST, comision = stop failure
-          ssrt: detalles.ssrt || (detalles.ssrt_ms ? detalles.ssrt_ms / 1000 : 0),
-          ssdAverage: detalles.ssd_average || 0
+          ssrt: detalles.ssrt || ((detalles.ssrt_ms || detalles.ssrt_integration_ms || 0) / 1000),
+          ssdAverage: detalles.ssd_average || ((detalles.ssd_mean_ms || 0) / 1000)
         };
       }
       else if (prueba === 'tol' || prueba === 'torre-londres') {
@@ -297,7 +297,7 @@ router.get('/alumno/:id', async (req, res) => {
           planLatency: detalles.first_action_latency_s || 0,
           
           // Unity envía: sequence_errors       -> Frontend espera: excessMoves (aprox)
-          excessMoves: detalles.sequence_errors || 0,
+          excessMoves: detalles.sequence_errors ?? detalles.excess_moves ?? 0,
           
           // Unity envía: category_switches     -> Frontend espera: ruleViolations (aprox)
           ruleViolations: detalles.category_switches || 0,
@@ -311,7 +311,7 @@ router.get('/alumno/:id', async (req, res) => {
             mouseDistance: h.total_mouse_distance_px || 0,
             freneticMovement: h.frenetic_movement_rate || 0,
             unnecessaryClicks: h.unnecessary_clicks || 0,
-            clickRate: h.mean_mouse_speed_px_s || 0 // Usamos velocidad media como proxy o h.unnecessary_click_rate si prefieres
+            clickRate: h.unnecessary_click_rate ?? h.mean_mouse_speed_px_s ?? 0
           }
         };
       }

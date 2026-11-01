@@ -1,4 +1,5 @@
 // src/lib/validation.ts
+import React from 'react';
 
 /**
  * Utilidades de validación centralizadas para formularios
@@ -35,7 +36,7 @@ export const PATTERNS = {
   // Solo letras y espacios (para nombres)
   nameLetters: /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/,
   // Números de teléfono (formato flexible)
-  phone: /^[\d\s\-\+\(\)]{7,20}$/,
+  phone: /^[\d\s\-+()]{7,20}$/,
 };
 
 // Mensajes de error por defecto
@@ -168,7 +169,7 @@ export const DomainValidators = {
  * Hook personalizado para validación de formularios (opcional)
  * Puedes usarlo si quieres validación en tiempo real
  */
-export function useFormValidation<T extends Record<string, any>>(
+export function useFormValidation<T extends Record<string, string | null | undefined>>(
   initialValues: T,
   validationRules: Record<keyof T, ValidationRule[]>
 ) {
@@ -176,16 +177,16 @@ export function useFormValidation<T extends Record<string, any>>(
   const [errors, setErrors] = React.useState<Partial<Record<keyof T, string>>>({});
   const [touched, setTouched] = React.useState<Partial<Record<keyof T, boolean>>>({});
 
-  const validateSingleField = (fieldName: keyof T, value: any) => {
+  const validateSingleField = (fieldName: keyof T, value: string | null | undefined) => {
     const rules = validationRules[fieldName];
     if (!rules) return { isValid: true };
-    
+
     return validateField(value, rules);
   };
 
-  const handleChange = (fieldName: keyof T, value: any) => {
+  const handleChange = (fieldName: keyof T, value: T[keyof T]) => {
     setValues(prev => ({ ...prev, [fieldName]: value }));
-    
+
     // Validar solo si el campo ya fue tocado
     if (touched[fieldName]) {
       const result = validateSingleField(fieldName, value);
@@ -198,7 +199,7 @@ export function useFormValidation<T extends Record<string, any>>(
 
   const handleBlur = (fieldName: keyof T) => {
     setTouched(prev => ({ ...prev, [fieldName]: true }));
-    
+
     const result = validateSingleField(fieldName, values[fieldName]);
     setErrors(prev => ({
       ...prev,
@@ -208,7 +209,7 @@ export function useFormValidation<T extends Record<string, any>>(
 
   const validateAll = (): boolean => {
     const fields: Record<string, FieldValidation> = {};
-    
+
     for (const [key, rules] of Object.entries(validationRules)) {
       fields[key] = {
         value: values[key as keyof T],
@@ -217,11 +218,11 @@ export function useFormValidation<T extends Record<string, any>>(
     }
 
     const { isValid, errors: newErrors } = validateFields(fields);
-    setErrors(newErrors as any);
-    
+    setErrors(newErrors as Partial<Record<keyof T, string>>);
+
     // Marcar todos como tocados
-    const allTouched: any = {};
-    Object.keys(validationRules).forEach(key => {
+    const allTouched: Partial<Record<keyof T, boolean>> = {};
+    (Object.keys(validationRules) as Array<keyof T>).forEach(key => {
       allTouched[key] = true;
     });
     setTouched(allTouched);
@@ -246,6 +247,3 @@ export function useFormValidation<T extends Record<string, any>>(
     setValues,
   };
 }
-
-// Necesitamos importar React para el hook
-import React from 'react';

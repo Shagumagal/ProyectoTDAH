@@ -13,11 +13,17 @@ export async function getADHDAnalysis(studentId: string): Promise<number> {
 
     if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText || "Error fetching AI analysis");
+        try {
+            const parsed = JSON.parse(errorText) as { error?: string };
+            if (parsed?.error) throw new Error(parsed.error);
+        } catch (e) {
+            if (e instanceof Error && e.message !== errorText && !e.message.startsWith("Unexpected")) {
+                throw e;
+            }
+        }
+        throw new Error(errorText || "Error al obtener el análisis de IA");
     }
 
     const data = await res.json();
     return data.prediction;
 }
-
-

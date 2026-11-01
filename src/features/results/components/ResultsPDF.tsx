@@ -120,7 +120,7 @@ const MetricRow = ({ label, value, highlight = false }: { label: string, value: 
   </View>
 );
 
-const Section = ({ title, children, style = {} }: { title: string, children: React.ReactNode, style?: any }) => (
+const Section = ({ title, children, style = {} }: { title: string, children: React.ReactNode, style?: Record<string, string | number> }) => (
   <View style={[styles.section, style]}>
     <Text style={styles.sectionTitle}>{title}</Text>
     {children}

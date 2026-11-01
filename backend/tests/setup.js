@@ -3,7 +3,10 @@ MockDate.set('2025-09-18T12:00:00Z');
 
 // DB
 jest.mock(require.resolve('../db'), () => ({
-  pool: { query: jest.fn() }
+  pool: {
+    query: jest.fn(),
+    connect: jest.fn()
+  }
 }));
 
 // bcrypt / jwt
@@ -20,16 +23,21 @@ jest.mock('jsonwebtoken', () => ({
 jest.mock(require.resolve('../middlewares/auth'), () => ({
   requireAuth: (req, _res, next) => {
     req.user = { id: 1, role: 'admin' };
+    req.auth = { id: 1, role: 'admin' };
     next();
   },
-  requireRole: () => (req, _res, next) => next()
+  requireRole: () => (req, _res, next) => {
+    req.user = req.user || { id: 1, role: 'admin' };
+    req.auth = req.auth || { id: 1, role: 'admin' };
+    next();
+  }
 }));
 
 // Servicio 2FA (usa exactamente la misma ruta que importa tu router)
 jest.mock(require.resolve('../services/twofactor.service'), () => ({
-  startTwoFactor: jest.fn(async () => ({ ok: true, expiresIn: 600 })),
+  startTwoFactor: jest.fn(async () => ({ ok: true, expires_in: 600 })),
   verifyTwoFactor: jest.fn(async () => ({ ok: true, token: 'TEST_JWT' })),
-  resendTwoFactor: jest.fn(async () => ({ ok: true, expiresIn: 600 }))
+  resendTwoFactor: jest.fn(async () => ({ ok: true, expires_in: 600 }))
 }));
 
 // Si tu auth.js usa rate-limit u otro middleware, desactívalo en tests:

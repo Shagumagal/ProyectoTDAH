@@ -1,30 +1,72 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { getADHDAnalysis } from "../services/adhdPrediction.service";
+import { listUsers } from "../../users/services/users.services";
+import type { Usuario } from "../../../lib/types";
+
+interface LocationState {
+  studentName?: string;
+  studentId?: string;
+}
 
 export default function AIAnalysisPage() {
   const location = useLocation();
-  const { studentName, studentId } = location.state || {};
+  const state = (location.state as LocationState | null) || {};
+
+  const [students, setStudents] = useState<Usuario[]>([]);
+  const [selectedId, setSelectedId] = useState<string>(state.studentId ? String(state.studentId) : "");
+  const [selectedName, setSelectedName] = useState<string>(state.studentName || "");
   const [prediction, setPrediction] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await listUsers({ role: "estudiante" });
+        if (cancelled) return;
+        setStudents(rows);
+        if (!selectedId && rows.length > 0) {
+          const first = rows[0];
+          setSelectedId(String(first.id));
+          setSelectedName(`${first.nombre} ${first.apellido}`.trim());
+        }
+      } catch {
+        // ignore if student list cannot be fetched
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
+  const handleSelectStudent = (idVal: string) => {
+    setSelectedId(idVal);
+    setPrediction(null);
+    setError(null);
+    const found = students.find((s) => String(s.id) === idVal);
+    if (found) {
+      setSelectedName(`${found.nombre} ${found.apellido}`.trim());
+    }
+  };
+
   const handleAnalysis = async () => {
-    if (!studentId) {
-        alert("No se ha seleccionado un estudiante para analizar.");
-        return;
+    if (!selectedId) {
+      alert("No se ha seleccionado un estudiante para analizar.");
+      return;
     }
 
     try {
-        setLoading(true);
-        setError(null);
-        const result = await getADHDAnalysis(studentId);
-        setPrediction(result);
-    } catch (err: any) {
-        console.error(err);
-        setError(err.message || "Error al realizar el análisis");
+      setLoading(true);
+      setError(null);
+      const result = await getADHDAnalysis(selectedId);
+      setPrediction(result);
+    } catch (err: unknown) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Error al realizar el análisis");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -60,20 +102,34 @@ export default function AIAnalysisPage() {
             </div>
           </div>
 
-          {studentName && (
-            <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-                <div className="size-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
-                </div>
-                <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Estudiante</p>
-                    <p className="text-base font-bold text-slate-900 dark:text-white">{studentName}</p>
-                </div>
+          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="size-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
             </div>
-          )}
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Estudiante</p>
+              {students.length > 0 ? (
+                <select
+                  value={selectedId}
+                  onChange={(e) => handleSelectStudent(e.target.value)}
+                  className="mt-0.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {students.map((s) => (
+                    <option key={String(s.id)} value={String(s.id)}>
+                      {s.nombre} {s.apellido}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-base font-bold text-slate-900 dark:text-white">
+                  {selectedName || "Sin estudiante seleccionado"}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -263,4 +319,3 @@ export default function AIAnalysisPage() {
     </div>
   );
 }
-

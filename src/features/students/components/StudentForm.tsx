@@ -7,6 +7,17 @@ import { validateField, DomainValidators, type ValidationRule } from "../../../l
 
 type Genero = "masculino" | "femenino";
 
+type SubmitPayload = {
+  id?: string;
+  nombres: string;
+  apellidos: string;
+  email?: string | null;
+  username?: string | null;
+  password?: string;
+  fecha_nacimiento: string;
+  genero?: Genero | null;
+};
+
 type Props = {
   initial?: {
     id?: string;
@@ -14,33 +25,22 @@ type Props = {
     nombres?: string;
     apellido?: string;
     apellidos?: string;
-    correo?: string;
-    email?: string;
-    username?: string;
+    correo?: string | null;
+    email?: string | null;
+    username?: string | null;
     fecha_nacimiento?: string | null;
     genero?: Genero | null;
   } | null;
   mode: "create" | "edit";
-  onSubmit: (data: {
-    id?: string;
-    nombres: string;
-    apellidos: string;
-    email?: string | null;
-    username?: string | null;
-    password?: string;
-    fecha_nacimiento: string;
-    genero?: Genero | null;
-  }) => Promise<void> | void;
+  onSubmit: (data: SubmitPayload) => Promise<void> | void;
   onCancel: () => void;
 };
 
 /* ---------- Helpers ---------- */
 function parseToDayjs(value?: string | null): Dayjs | null {
   if (!value) return null;
-  const d =
-    value.length > 10 && value.includes("T")
-      ? dayjs(value)
-      : dayjs(value, "YYYY-MM-DD", true);
+  const clean = String(value).slice(0, 10);
+  const d = dayjs(clean);
   return d.isValid() ? d : null;
 }
 
@@ -98,7 +98,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
 
   // Confirmación
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingPayload, setPendingPayload] = useState<any | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<SubmitPayload | null>(null);
   const [diffList, setDiffList] = useState<Array<{ label: string; before: string; after: string }>>([]);
 
   const maxDate = useMemo(() => dayjs().subtract(5, "year").endOf("day"), []);
@@ -244,7 +244,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
     );
   }
 
-  function buildPayload() {
+  function buildPayload(): SubmitPayload {
     return {
       id: initial?.id,
       nombres: nombres.trim(),
@@ -257,7 +257,7 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
     };
   }
 
-  function computeDiff(next: any) {
+  function computeDiff(next: SubmitPayload) {
     const prev = {
       nombres: (initial?.nombres ?? initial?.nombre ?? "").trim() || "",
       apellidos: (initial?.apellidos ?? initial?.apellido ?? "").trim() || "",
@@ -307,8 +307,8 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
       try {
         setSaving(true);
         await onSubmit(payload);
-      } catch (err: any) {
-        setGlobalError(err?.message || "Error al guardar alumno.");
+      } catch (err: unknown) {
+        setGlobalError(err instanceof Error ? err.message : "Error al guardar alumno.");
       } finally {
         setSaving(false);
       }
@@ -332,8 +332,8 @@ export default function StudentForm({ initial, mode, onSubmit, onCancel }: Props
       await onSubmit(pendingPayload);
       setConfirmOpen(false);
       setPendingPayload(null);
-    } catch (err: any) {
-      setGlobalError(err?.message || "Error al guardar alumno.");
+    } catch (err: unknown) {
+      setGlobalError(err instanceof Error ? err.message : "Error al guardar alumno.");
     } finally {
       setSaving(false);
     }

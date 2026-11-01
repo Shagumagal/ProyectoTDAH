@@ -23,33 +23,50 @@ const ForgotPasswordPage = lazy(() => import("../features/auth/ForgotPasswordPag
 const ResetPasswordPage = lazy(() => import("../features/auth/ResetPasswordPage"));
 const ResultsPage = lazy(() => import("../features/results/pages/ResultsPage"));
 const AIAnalysisPage = lazy(() => import("../features/results/pages/AIAnalysisPage"));
-const StudentGameResultsPage = lazy(() => import("../features/students/pages/StudentGameResultsPage")); // Nuevo
+const StudentGameResultsPage = lazy(() => import("../features/students/pages/StudentGameResultsPage"));
 const PlayGamePage = lazy(() => import("../features/game/GamePage").then(m => ({ default: m.GamePage })));
 const CaptchaPage = lazy(() => import("../features/captcha/CaptchaPage"));
 
 type Role = "admin" | "profesor" | "psicologo" | "estudiante";
 
+interface JwtPayload {
+  sub?: string;
+  role?: string;
+  exp?: number;
+}
+
 /* helpers */
-function parseJwt(token: string): any {
+function parseJwt(token: string): JwtPayload | null {
   try {
     const base64 = token.split(".")[1];
+    if (!base64) return null;
     const json = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(decodeURIComponent(escape(json)));
-  } catch { return null; }
+    return JSON.parse(decodeURIComponent(escape(json))) as JwtPayload;
+  } catch {
+    return null;
+  }
 }
 
 function getRoleFromToken(): Role | null {
   const t = localStorage.getItem("auth_token");
   if (!t) return null;
   const p = parseJwt(t);
-  const r = (p?.role || "").toLowerCase();
+  if (!p) {
+    localStorage.removeItem("auth_token");
+    return null;
+  }
+  if (typeof p.exp === "number" && p.exp * 1000 < Date.now()) {
+    localStorage.removeItem("auth_token");
+    return null;
+  }
+  const r = (p.role || "").toLowerCase();
   return ["admin", "profesor", "psicologo", "estudiante"].includes(r) ? (r as Role) : null;
 }
 
 const HOME_BY_ROLE: Record<Role, string> = {
   admin: ROUTES.usuarios,
   profesor: ROUTES.alumnos,
-  psicologo: ROUTES.resultados,
+  psicologo: ROUTES.alumnos,
   estudiante: ROUTES.videojuego,
 };
 
@@ -57,12 +74,12 @@ function homeByRole(role: Role | null) { return role ? HOME_BY_ROLE[role] : ROUT
 
 /* guards */
 function ProtectedRoute({ allow, children }: { allow: Role[]; children: JSX.Element }) {
-  const token = localStorage.getItem("auth_token");
   const role = getRoleFromToken();
+  const token = localStorage.getItem("auth_token");
   const location = useLocation();
 
-  if (!token) return <Navigate to={ROUTES.login} replace state={{ from: location }} />;
-  if (!role || !allow.includes(role)) return <Navigate to={homeByRole(role)} replace />;
+  if (!token || !role) return <Navigate to={ROUTES.login} replace state={{ from: location }} />;
+  if (!allow.includes(role)) return <Navigate to={homeByRole(role)} replace />;
 
   // Interstitial Captcha Check for Students
   if (role === "estudiante") {
@@ -76,11 +93,11 @@ function ProtectedRoute({ allow, children }: { allow: Role[]; children: JSX.Elem
 }
 
 function PublicOnlyRoute({ children }: { children: JSX.Element }) {
-  const token = localStorage.getItem("auth_token");
   const role = getRoleFromToken();
+  const token = localStorage.getItem("auth_token");
   const location = useLocation();
 
-  if (token) return <Navigate to={homeByRole(role)} replace state={{ from: location }} />;
+  if (token && role) return <Navigate to={homeByRole(role)} replace state={{ from: location }} />;
   return children;
 }
 
@@ -133,11 +150,11 @@ export default function AppRoutes() {
                   }
                 />
 
-                {/* Alumnos: admin y profesor (psicólogo fuera) */}
+                {/* Alumnos: admin, profesor y psicólogo */}
                 <Route
                   path={ROUTES.alumnos}
                   element={
-                    <ProtectedRoute allow={["admin", "profesor"]}>
+                    <ProtectedRoute allow={["admin", "profesor", "psicologo"]}>
                       <StudentsPage />
                     </ProtectedRoute>
                   }

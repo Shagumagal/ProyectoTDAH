@@ -15,11 +15,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "node-fetch": "^2.7.0",
     "nodemailer": "^7.0.10",
-    "pg": "^8.11.5",
-    "react": "^19.1.2",
-    "react-dom": "^19.1.2"
+    "pg": "^8.11.5"
   },
   "devDependencies": {
     "jest": "^29.7.0",
@@ -35,7 +32,7 @@
     "setupFilesAfterEnv": [
       "<rootDir>/tests/setup.js"
     ],
-    "resetMocks": true,
+    "resetMocks": false,
     "restoreMocks": true,
     "clearMocks": true
   }
