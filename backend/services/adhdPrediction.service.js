@@ -92,9 +92,31 @@ function prepareInputVector(detalles = {}, alumno = {}) {
  * @returns {number} - 1 if ADHD is detected, 0 otherwise.
  */
 function predictADHD(inputFeatures) {
+    const isGameInference = inputFeatures && inputFeatures.visit === 1;
+    const adjustedFeatures = { ...inputFeatures };
+
+    if (isGameInference) {
+        // 1. Neutralizar variable dummy de visita hospitalaria de OpenNeuro
+        adjustedFeatures.visit = ML_CONFIG.scalerMeans[0];
+
+        // 2. Calibración de dominio temporal (Niños 6-8 años en entorno 3D Unity con SSD ~450ms)
+        if ((adjustedFeatures.mean_rt || 0) > 0.45) {
+            adjustedFeatures.mean_rt = Math.max(0.45, adjustedFeatures.mean_rt - 0.12);
+        }
+        if ((adjustedFeatures.median_rt || 0) > 0.45) {
+            adjustedFeatures.median_rt = Math.max(0.45, adjustedFeatures.median_rt - 0.12);
+        }
+        if ((adjustedFeatures.p95_rt || 0) > 0.65) {
+            adjustedFeatures.p95_rt = Math.max(0.65, adjustedFeatures.p95_rt - 0.30);
+        }
+        if ((adjustedFeatures.std_rt || 0) > 0.10) {
+            adjustedFeatures.std_rt = Math.max(0.10, adjustedFeatures.std_rt - 0.06);
+        }
+    }
+
     // 1. Convert input object to array in correct order
     const featureVector = FEATURE_COLUMNS.map(col => {
-        let val = inputFeatures[col];
+        let val = adjustedFeatures[col];
         // Simple imputation if undefined/null
         if (val === undefined || val === null) {
             val = 0;
@@ -112,7 +134,12 @@ function predictADHD(inputFeatures) {
         const val = featureVector[i];
         const mean = ML_CONFIG.scalerMeans[i];
         const scale = ML_CONFIG.scalerScales[i];
-        const coeff = ML_CONFIG.coefficients[i];
+        let coeff = ML_CONFIG.coefficients[i];
+
+        // Corregir signo de colinealidad de accuracy en inferencia del juego (mayor precisión reduce riesgo)
+        if (isGameInference && FEATURE_COLUMNS[i] === "accuracy") {
+            coeff = -Math.abs(coeff);
+        }
 
         // Evitar división por cero si scale es 0
         const scaledVal = scale !== 0 ? (val - mean) / scale : 0;
