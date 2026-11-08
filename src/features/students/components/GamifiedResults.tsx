@@ -370,7 +370,7 @@ export default function GamifiedResults({ results }: InternalProps) {
                     </>
                   ) : (
                     // Backend anterior sin animales llevados/total
-                    <StatRow label="Puntos de constructor" value={`${Math.round(stats.tol.score)} de 100`} barPct={stats.tol.score} barColor="bg-purple-500" icon={<Brain className="w-4 h-4 text-purple-500" />} />
+                    <StatRow label="Animales en orden" value={`${outOfTen(stats.tol.score / 100)} de cada 10`} barPct={stats.tol.score} barColor="bg-purple-500" icon={<ListOrdered className="w-4 h-4 text-purple-500" />} />
                   )}
                   <StatRow label="Pensaste antes de mover" value={seconds(results.tol?.planLatency)} icon={<Lightbulb className="w-4 h-4 text-amber-500" />} />
                   <StatRow label="Tiempo por jugada" value={seconds(stats.tol.time)} icon={<Clock className="w-4 h-4 text-blue-400" />} />
