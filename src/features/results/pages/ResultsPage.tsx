@@ -17,7 +17,7 @@ import type {
   TowerOfLondonMetrics,
   HyperactivityMetrics,
 } from "../types";
-import { inferDSM5, tolEvidence } from "../utils/dsm5";
+import { inferDSM5, tolEvidence, SHOW_MOTOR_ANALYSIS } from "../utils/dsm5";
 import { getStudentResults } from "../services/results.service";
 
 /* =========================
@@ -497,7 +497,7 @@ export default function ResultsPage({ data: propData }: { data?: ResultadosAlumn
                  </div>
               </div>
               
-              {data.tol.hyperactivity && (
+              {SHOW_MOTOR_ANALYSIS && data.tol.hyperactivity && (
                  <HyperactivityCard data={data.tol.hyperactivity} />
               )}
             </div>

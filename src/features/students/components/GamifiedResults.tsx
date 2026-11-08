@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Target, Zap, Brain, Trophy, Medal, Shield, Clock, Star, Activity, TrendingUp, Sprout, Hand, Eye, Lightbulb, PawPrint, ListOrdered } from 'lucide-react';
 import type { ResultadosAlumno, GameBase } from '../../results/types';
+import { SHOW_MOTOR_ANALYSIS } from '../../results/utils/dsm5';
 
 // ¿El alumno jugó este juego? El backend envía `played`; si es una versión anterior
 // sin ese campo, un juego sin partidas llega con todo en cero.
@@ -375,9 +376,11 @@ export default function GamifiedResults({ results }: InternalProps) {
                   <StatRow label="Pensaste antes de mover" value={seconds(results.tol?.planLatency)} icon={<Lightbulb className="w-4 h-4 text-amber-500" />} />
                   <StatRow label="Tiempo por jugada" value={seconds(stats.tol.time)} icon={<Clock className="w-4 h-4 text-blue-400" />} />
 
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className={`grid ${SHOW_MOTOR_ANALYSIS ? 'grid-cols-2' : 'grid-cols-1'} gap-2 pt-3 border-t border-slate-100 dark:border-slate-800`}>
                     <MiniBadge label="Pasos fuera de orden" value={`${results.tol?.excessMoves ?? 0}`} />
-                    <MiniBadge label="Clics de más" value={tolClicks != null ? `${tolClicks}` : '—'} />
+                    {SHOW_MOTOR_ANALYSIS && (
+                      <MiniBadge label="Clics de más" value={tolClicks != null ? `${tolClicks}` : '—'} />
+                    )}
                   </div>
                 </div>
               </div>

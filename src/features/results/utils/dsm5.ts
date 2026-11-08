@@ -17,6 +17,13 @@ export const RULES = {
 };
 
 /**
+ * Análisis de actividad motora (ratón/teclado) oculto de momento: la telemetría aún no es fiable
+ * en el juego en primera persona. Mientras esté en false no se muestra (panel, PDF, resumen del
+ * alumno) ni cuenta como evidencia en los criterios DSM-5. Los datos se siguen guardando.
+ */
+export const SHOW_MOTOR_ANALYSIS = false;
+
+/**
  * Evidencia de la Planificación (juego 3D de la granja).
  * Se basa solo en los errores de orden (excessMoves = sequence_errors, calculado con LCS):
  * 0 = sin evidencia, 1 = débil, 2–3 = moderada, 4 o más = fuerte.
@@ -63,7 +70,7 @@ export function inferDSM5(r: ResultadosAlumno): Criterio[] {
   const evStop       = scoreToEvidence(s?.stopFailureRate ?? 0, RULES.stopFail);
   const evOrg: Evidence = tolEvidence(tl);
 
-  const h = tl?.hyperactivity ?? g?.hyperactivity ?? s?.hyperactivity;
+  const h = SHOW_MOTOR_ANALYSIS ? (tl?.hyperactivity ?? g?.hyperactivity ?? s?.hyperactivity) : undefined;
   const evFrenetic = scoreToEvidence(h?.freneticMovement ?? 0, { weak: 0.15, mod: 0.30, strong: 0.50 });
   const evUnnecClicks = scoreToEvidence(h?.unnecessaryClicks ?? 0, { weak: 3, mod: 6, strong: 12 });
   const evHyperMotor = maxEvidence([evFrenetic, evUnnecClicks]);
