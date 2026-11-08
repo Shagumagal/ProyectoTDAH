@@ -52,6 +52,8 @@ export type TowerOfLondonMetrics = {
   ruleViolations: number;
   decisionTime?: number;
   planningScore?: number;
+  delivered?: number | null;  // animales llevados (aciertos)
+  goal?: number | null;       // animales a llevar (total_estimulos)
   hyperactivity?: HyperactivityMetrics | null;
 };
 

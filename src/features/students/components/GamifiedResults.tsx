@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Target, Zap, Brain, Trophy, Medal, Shield, Clock, Star, Activity, TrendingUp, Sprout, Hand, Eye, Lightbulb } from 'lucide-react';
+import { Target, Zap, Brain, Trophy, Medal, Shield, Clock, Star, Activity, TrendingUp, Sprout, Hand, Eye, Lightbulb, PawPrint, ListOrdered } from 'lucide-react';
 import type { ResultadosAlumno, GameBase } from '../../results/types';
 
 // ¿El alumno jugó este juego? El backend envía `played`; si es una versión anterior
@@ -243,6 +243,9 @@ export default function GamifiedResults({ results }: InternalProps) {
 
   // El movimiento del ratón solo se captura en Planificación (Torre de Londres)
   const tolClicks = results.tol?.hyperactivity?.unnecessaryClicks;
+  // Resultado del juego de Planificación ("Ok: x/y" en el HUD); null si el backend no lo envía
+  const tolGoal = Number(results.tol?.goal) > 0 ? Number(results.tol?.goal) : null;
+  const tolDelivered = Math.min(tolGoal ?? 0, Math.max(0, Number(results.tol?.delivered) || 0));
 
   return (
     <section className="space-y-8">
@@ -360,7 +363,15 @@ export default function GamifiedResults({ results }: InternalProps) {
                 <h3 className="text-3xl font-black text-slate-800 dark:text-white mb-4">{stats.tol.rank}</h3>
 
                 <div className="space-y-3 flex-1 text-left">
-                  <StatRow label="Puntos de constructor" value={`${Math.round(stats.tol.score)} de 100`} barPct={stats.tol.score} barColor="bg-purple-500" icon={<Brain className="w-4 h-4 text-purple-500" />} />
+                  {tolGoal ? (
+                    <>
+                      <StatRow label="Animales llevados" value={`${tolDelivered} de ${tolGoal}`} barPct={(tolDelivered / tolGoal) * 100} barColor="bg-purple-500" icon={<PawPrint className="w-4 h-4 text-purple-500" />} />
+                      <StatRow label="Animales en orden" value={`${Math.round((stats.tol.score / 100) * tolGoal)} de ${tolGoal}`} icon={<ListOrdered className="w-4 h-4 text-purple-500" />} />
+                    </>
+                  ) : (
+                    // Backend anterior sin animales llevados/total
+                    <StatRow label="Puntos de constructor" value={`${Math.round(stats.tol.score)} de 100`} barPct={stats.tol.score} barColor="bg-purple-500" icon={<Brain className="w-4 h-4 text-purple-500" />} />
+                  )}
                   <StatRow label="Pensaste antes de mover" value={seconds(results.tol?.planLatency)} icon={<Lightbulb className="w-4 h-4 text-amber-500" />} />
                   <StatRow label="Tiempo por jugada" value={seconds(stats.tol.time)} icon={<Clock className="w-4 h-4 text-blue-400" />} />
 

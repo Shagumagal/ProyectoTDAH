@@ -309,6 +309,10 @@ router.get('/alumno/:id', async (req, res) => {
           decisionTime: detalles.mean_decision_time_s || 0,
           planningScore: detalles.sequence_compliance || 0, // 0 a 1
 
+          // Resultado del juego tal como lo ve el niño en el HUD ("Ok: x/y")
+          delivered: row.aciertos ?? null,      // animales llevados
+          goal: row.total_estimulos ?? null,    // animales a llevar
+
           // AQUI AGREGAMOS LO NUEVO SOLO PARA TOL
           hyperactivity: {
             mouseDistance: h.total_mouse_distance_px || 0,
