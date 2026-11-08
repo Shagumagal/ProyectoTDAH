@@ -14,7 +14,6 @@ export async function getStudentResults(studentId?: string): Promise<ResultadosA
       const base64 = token.split(".")[1];
       const json = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
       const payload = JSON.parse(decodeURIComponent(escape(json)));
-      console.log("Token payload:", payload); // Debug log
       targetId = payload.id || payload.user_id || payload.sub; // Try common claims
     } catch (e) {
       console.error("Token parsing error:", e);
@@ -32,34 +31,6 @@ export async function getStudentResults(studentId?: string): Promise<ResultadosA
 
   if (!res.ok) {
     throw new Error(`Error fetching results: ${res.statusText}`);
-  }
-
-  return res.json();
-}
-
-export type RankingItem = {
-  nombre: string;
-  acc_score: number; // 0-1
-  tol_score: number; // 0-1
-  created_at: string;
-};
-
-export type GlobalRanking = {
-  gng: RankingItem[];
-  sst: RankingItem[];
-  tol: RankingItem[];
-};
-
-export async function getGlobalRanking(): Promise<GlobalRanking> {
-  const token = localStorage.getItem("auth_token");
-  const res = await fetch(`${API_URL}/resultados/global/ranking`, {
-    headers: {
-      Authorization: `Bearer ${token || ""}`,
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Error fetching ranking: ${res.statusText}`);
   }
 
   return res.json();

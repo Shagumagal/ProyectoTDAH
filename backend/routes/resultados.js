@@ -247,8 +247,9 @@ router.get('/alumno/:id', async (req, res) => {
     const response = {
       alumno: { id: id, nombre: studentName },
       fecha: new Date().toISOString(),
-      goNoGo: { accuracy: 0, commissionRate: 0, omissionRate: 0, medianRT: 0, cvRT: 0, p95RT: 0 },
-      stopSignal: { accuracy: 0, commissionRate: 0, omissionRate: 0, medianRT: 0, cvRT: 0, stopFailureRate: 0 },
+      // played=false indica que el alumno aún no tiene partidas de ese juego (los ceros son relleno)
+      goNoGo: { played: false, accuracy: 0, commissionRate: 0, omissionRate: 0, medianRT: 0, cvRT: 0, p95RT: 0 },
+      stopSignal: { played: false, accuracy: 0, commissionRate: 0, omissionRate: 0, medianRT: 0, cvRT: 0, stopFailureRate: 0 },
       stroop: null,
       tol: null
     };
@@ -260,6 +261,7 @@ router.get('/alumno/:id', async (req, res) => {
 
       if (prueba === 'gng' || prueba === 'go-no-go' || prueba === 'gonogo') {
         response.goNoGo = {
+          played: true,
           accuracy: row.total_estimulos > 0 ? (row.aciertos / row.total_estimulos) : 0,
           commissionRate: row.total_estimulos > 0 ? (row.errores_comision / row.total_estimulos) : 0,
           omissionRate: row.total_estimulos > 0 ? (row.errores_omision / row.total_estimulos) : 0,
@@ -274,6 +276,7 @@ router.get('/alumno/:id', async (req, res) => {
       } 
       else if (prueba === 'sst' || prueba === 'stop-signal') {
         response.stopSignal = {
+          played: true,
           accuracy: row.total_estimulos > 0 ? (row.aciertos / row.total_estimulos) : 0,
           commissionRate: row.total_estimulos > 0 ? (row.errores_comision / row.total_estimulos) : 0, // Falsas alarmas
           omissionRate: row.total_estimulos > 0 ? (row.errores_omision / row.total_estimulos) : 0,
@@ -311,7 +314,8 @@ router.get('/alumno/:id', async (req, res) => {
             mouseDistance: h.total_mouse_distance_px || 0,
             freneticMovement: h.frenetic_movement_rate || 0,
             unnecessaryClicks: h.unnecessary_clicks || 0,
-            clickRate: h.unnecessary_click_rate ?? h.mean_mouse_speed_px_s ?? 0
+            // Solo tasa de clics innecesarios: la velocidad del ratón (px/s) es otra magnitud
+            clickRate: h.unnecessary_click_rate ?? 0
           }
         };
       }

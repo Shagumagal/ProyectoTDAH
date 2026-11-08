@@ -24,6 +24,7 @@ export type HyperactivityMetrics = {
 };
 
 export type GameBase = {
+  played?: boolean;           // false = sin partidas (valores en cero son relleno)
   accuracy: number;           // 0–1
   commissionRate: number;     // 0–1
   omissionRate: number;       // 0–1
