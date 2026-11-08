@@ -11,8 +11,21 @@ export const RULES = {
   stopFail:   { weak: 0.30, mod: 0.40, strong: 0.50 },
   stroopDelta:{ weak: 0.15, mod: 0.25, strong: 0.35 },
   tolMoves:   { weak: 1, mod: 2, strong: 4 },
+  // Umbrales de la Torre de Londres clásica (en pantalla). No se usan para el riesgo de la
+  // Planificación 3D: allí la "latencia" incluye caminar hasta el animal y llevarlo (siempre > 6 s).
   planLatency:{ weak: 2.5, mod: 4.0, strong: 6.0 },
 };
+
+/**
+ * Evidencia de la Planificación (juego 3D de la granja).
+ * Se basa solo en los errores de orden (excessMoves = sequence_errors, calculado con LCS):
+ * 0 = sin evidencia, 1 = débil, 2–3 = moderada, 4 o más = fuerte.
+ * La latencia no entra porque en 3D mide desplazamiento, no tiempo de planificación.
+ */
+export function tolEvidence(tl?: { excessMoves?: number } | null): Evidence {
+  if (!tl) return "sin";
+  return scoreToEvidence(tl.excessMoves ?? 0, RULES.tolMoves);
+}
 
 export function scoreToEvidence(value: number, bands: { weak: number; mod: number; strong: number }): Evidence {
   if (value >= bands.strong) return "fuerte";
@@ -48,13 +61,7 @@ export function inferDSM5(r: ResultadosAlumno): Criterio[] {
   const evCV         = scoreToEvidence(Math.max(g?.cvRT ?? 0, s?.cvRT ?? 0), RULES.cvRT);
   const evVig        = scoreToEvidence(g?.vigilanceDecrement ?? 0, RULES.vigDec);
   const evStop       = scoreToEvidence(s?.stopFailureRate ?? 0, RULES.stopFail);
-  const evOrg: Evidence = tl
-    ? tl.excessMoves === 0 ? "sin"
-    : (tl.excessMoves >= RULES.tolMoves.strong || tl.planLatency >= RULES.planLatency.strong) ? "fuerte"
-    : (tl.excessMoves >= RULES.tolMoves.mod    || tl.planLatency >= RULES.planLatency.mod)    ? "moderada"
-    : (tl.excessMoves >= RULES.tolMoves.weak   || tl.planLatency >= RULES.planLatency.weak)   ? "debil"
-    : "sin"
-    : "sin";
+  const evOrg: Evidence = tolEvidence(tl);
 
   const h = tl?.hyperactivity ?? g?.hyperactivity ?? s?.hyperactivity;
   const evFrenetic = scoreToEvidence(h?.freneticMovement ?? 0, { weak: 0.15, mod: 0.30, strong: 0.50 });

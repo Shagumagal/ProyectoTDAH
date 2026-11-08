@@ -17,7 +17,7 @@ import type {
   TowerOfLondonMetrics,
   HyperactivityMetrics,
 } from "../types";
-import { inferDSM5, RULES } from "../utils/dsm5";
+import { inferDSM5, tolEvidence } from "../utils/dsm5";
 import { getStudentResults } from "../services/results.service";
 
 /* =========================
@@ -174,13 +174,8 @@ function riskVariant(r: ReturnType<typeof riskFromTriad> | "bajo" | "medio" | "a
 }
 function scoreLevel(e: Evidence) { return e === "fuerte" ? "alto" : e === "moderada" ? "medio" : "bajo"; }
 function evTo(tl: TowerOfLondonMetrics): Evidence {
-  // Ajuste: Si no hay errores (excessMoves == 0), la latencia alta es planificación reflexiva, no riesgo.
-  if (tl.excessMoves === 0) return "sin";
-
-  if (tl.excessMoves >= RULES.tolMoves.strong || tl.planLatency >= RULES.planLatency.strong) return "fuerte";
-  if (tl.excessMoves >= RULES.tolMoves.mod    || tl.planLatency >= RULES.planLatency.mod)    return "moderada";
-  if (tl.excessMoves >= RULES.tolMoves.weak   || tl.planLatency >= RULES.planLatency.weak)   return "debil";
-  return "sin";
+  // Riesgo de la Planificación 3D según errores de orden (misma regla que los criterios DSM-5).
+  return tolEvidence(tl);
 }
 
 /* =========================
