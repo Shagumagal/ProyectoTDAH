@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { getStudentResults } from "../../results/services/results.service";
 import GamifiedResults from "../components/GamifiedResults";
+import Leaderboard from "../components/Leaderboard";
 import type { ResultadosAlumno } from "../../results/types";
 import { Loader2 } from "lucide-react";
 
@@ -29,7 +30,6 @@ export default function StudentGameResultsPage() {
         const result = await getStudentResults();
         if (!cancelled) setData(result);
       } catch (e: unknown) {
-        console.error("Resultados del alumno:", e);
         if (!cancelled) setError(e instanceof Error ? e.message : "Error al cargar resultados");
       } finally {
         if (!cancelled) setLoading(false);
@@ -50,7 +50,7 @@ export default function StudentGameResultsPage() {
     return (
       <div className="p-8 text-center text-red-500 bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-900 mx-4 mt-8">
         <p className="font-bold">No pudimos cargar tus trofeos</p>
-        <p className="text-sm mt-1 opacity-80">Inténtalo de nuevo en un momento.</p>
+        <p className="text-sm mt-1 opacity-80">{error}</p>
       </div>
     );
   }
@@ -64,7 +64,7 @@ export default function StudentGameResultsPage() {
              Mi Sala de Trofeos
            </h1>
            <p className="text-slate-600 dark:text-slate-300">
-             Mira tus misiones y las estrellas que ganaste.
+             ¡Mira tu progreso y colecciona todas las medallas!
            </p>
         </div>
 
@@ -87,6 +87,10 @@ export default function StudentGameResultsPage() {
       </div>
 
       <GamifiedResults results={data} />
+
+      <div className="pt-8">
+         <Leaderboard />
+      </div>
     </div>
   );
 }
