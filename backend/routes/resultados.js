@@ -302,10 +302,8 @@ router.get('/alumno/:id', async (req, res) => {
           // Unity envía: sequence_errors       -> Frontend espera: excessMoves (aprox)
           excessMoves: detalles.sequence_errors ?? detalles.excess_moves ?? 0,
           
-          // Unity envía: category_switches     -> Frontend espera: ruleViolations
-          // Con la regla "primero domésticos y luego no domésticos", hacerlo perfecto ya implica
-          // 1 cambio de categoría; solo los cambios extra son violaciones de la regla.
-          ruleViolations: Math.max(0, (Number(detalles.category_switches) || 0) - 1),
+          // Unity envía: category_switches     -> Frontend espera: ruleViolations (aprox)
+          ruleViolations: detalles.category_switches || 0,
 
           // NUEVOS CAMPOS
           decisionTime: detalles.mean_decision_time_s || 0,
