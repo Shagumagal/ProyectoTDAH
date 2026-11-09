@@ -6,6 +6,7 @@ import { getMe, updateMe, changeMyPassword } from "./services/profile.services";
 import { useNotification } from "../../context/NotificationContext";
 import WhiteDatePicker from "../../componentes/WhiteDatePicker";
 import ConfirmDialog from "../../componentes/ConfirmDialog";
+import PasswordStrength from "../../componentes/PasswordStrength";
 
 type Gender = "masculino" | "femenino" | null;
 
@@ -309,6 +310,7 @@ export default function ProfilePage() {
                 La contraseña debe tener al menos 6 caracteres
               </p>
             )}
+            <PasswordStrength password={newPwd} />
           </label>
 
           <label className="grid gap-1">

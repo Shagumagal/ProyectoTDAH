@@ -3,6 +3,7 @@ import type { Usuario } from "../../../lib/types";
 import dayjs, { Dayjs } from "dayjs";
 import WhiteDatePicker from "../../../componentes/WhiteDatePicker";
 import ValidatedInput from "../../../componentes/ValidatedInput";
+import PasswordStrength from "../../../componentes/PasswordStrength";
 import { validateField, DomainValidators, type ValidationRule } from "../../../lib/validation";
 
 // Tipos del form
@@ -496,6 +497,7 @@ export default function UserForm({
               autoComplete="new-password"
               showValidIcon={false}
             />
+            <PasswordStrength password={password} />
           </div>
         )}
       </div>

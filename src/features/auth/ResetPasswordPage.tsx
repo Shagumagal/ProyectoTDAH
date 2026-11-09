@@ -3,6 +3,7 @@ import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { resetPassword } from "./services/password.services";
 import { ROUTES } from "../../lib/routes";
 import { useNotification } from "../../context/NotificationContext";
+import PasswordStrength from "../../componentes/PasswordStrength";
 
 export default function ResetPasswordPage() {
   const [sp] = useSearchParams();
@@ -55,6 +56,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPwd(e.target.value)}
               className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
             />
+            <PasswordStrength password={pwd} />
           </label>
 
           <label className="grid gap-1">
